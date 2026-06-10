@@ -108,6 +108,40 @@ describe("cifDictionaryHandler", function () {
       removeCifDictionaryHandler({ path: "dup2.dic" });
       // No assertion needed - just verify no crash
     });
+
+    it("should remove completion, hover, and validation data for removed dictionaries", function () {
+      const dictContent = makeTagDefinition("_removed_test_tag", {
+        category: "removed_cat",
+        description: "Removed test tag",
+        states: ["yes", "no"],
+      });
+      addCifDictionaryHandler({
+        path: "removed_test.dic",
+        content: dictContent,
+      });
+
+      assert.ok(cifKeysSet().has("_removed_test_tag"));
+      assert.ok(cifKeys().some((item) => item.label === "_removed_test_tag"));
+
+      const tagResult = parser("data_test\n_removed_test_tag yes");
+      const tagToken = tagResult.tokens.find(
+        (t) => t.type === TokenType.TAG && t.text === "_removed_test_tag",
+      );
+      const invalidValue = parser("data_test\n_removed_test_tag maybe").tokens.find(
+        (t) => t.text === "maybe",
+      );
+      assert.ok(tagToken);
+      assert.ok(invalidValue);
+      assert.ok(hoverText(tagToken!).includes("Removed test tag"));
+      assert.strictEqual(isValidValue(invalidValue!), false);
+
+      removeCifDictionaryHandler({ path: "removed_test.dic" });
+
+      assert.ok(!cifKeysSet().has("_removed_test_tag"));
+      assert.ok(!cifKeys().some((item) => item.label === "_removed_test_tag"));
+      assert.strictEqual(hoverText(tagToken!), "");
+      assert.strictEqual(isValidValue(invalidValue!), true);
+    });
   });
 
   describe("hoverText", function () {

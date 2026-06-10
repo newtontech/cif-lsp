@@ -40,6 +40,7 @@ export const removeCifDictionaryHandler: NotificationHandler<
   RemoveCifDictionaryParams
 > = (params) => {
   dictionaries.delete(params.path);
+  rebuildDefinitionIndexes();
 };
 
 export function cifKeys(): CompletionItem[] {
@@ -140,6 +141,21 @@ function collectDefinitions(tokens: Token[]) {
   if (currentEntry) {
     storeEntryToMap(currentEntry);
   }
+}
+
+function rebuildDefinitionIndexes() {
+  tagDefinitions.clear();
+  completionItems.splice(0, completionItems.length);
+  for (const content of dictionaries.values()) {
+    collectDefinitions(parser(content).tokens);
+  }
+  completionItems.sort((a, b) => {
+    const aLabel = a.label.toLowerCase();
+    const bLabel = b.label.toLowerCase();
+    if (aLabel < bLabel) return -1;
+    if (aLabel > bLabel) return 1;
+    return 0;
+  });
 }
 
 function updateEntryFromToken(entry: CifDefinitionData, token: Token): void {

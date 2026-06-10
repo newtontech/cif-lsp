@@ -1,0 +1,7 @@
+data_my_data
+_a 1
+save_my_frame
+_x 10
+_y 20
+save_
+_b 2

@@ -11,7 +11,8 @@ function checkDuplicateDataBlocks(data: ParserResult): void {
   const alreadyReported = new Set<Token>();
   for (const token of data.tokens) {
     if (token.type === TokenType.DATA) {
-      const name = token.text;
+      // CIF data block names are case-insensitive
+      const name = token.text.toLowerCase();
       const existing = seen.get(name);
       if (existing) {
         if (!alreadyReported.has(existing)) {

@@ -1,0 +1,4 @@
+data_quoted
+_name 'John O''Reilly'
+_title 'The Crystal Structure'
+_simple plain_value

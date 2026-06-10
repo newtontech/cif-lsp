@@ -1,0 +1,12 @@
+data_multiline
+_description
+;This is a multiline
+text value that spans
+multiple lines.
+;
+_note
+;
+Another multiline value
+with blank lines inside.
+;
+_simple_tag hello

@@ -1,0 +1,12 @@
+data_block_A
+_a 1
+_b 2
+
+data_block_B
+_c 3
+_d 4
+loop_
+_x
+_y
+10 20
+30 40

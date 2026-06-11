@@ -24,6 +24,9 @@
     "onLanguage:cif"
   ],
   "main": "./client/out/extension",
+  "bin": {
+    "cif-lsp-tool": "./server/out/cifLspTool.js"
+  },
   "contributes": {
     "languages": [
       {

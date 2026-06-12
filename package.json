@@ -88,6 +88,7 @@
     "compile": "tsc -b",
     "watch": "tsc -b -w",
     "lint": "eslint ./client/src ./server/src",
+    "agent-smoke": "npm run compile && node server/out/cifLspTool.js --help && node server/out/cifLspTool.js check server/src/test/files/input/crystal_structure.cif --format json",
     "postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
     "test": "sh ./scripts/e2e.sh",
     "unit-test": "mocha --recursive \"./server/out/test/*.js\"",

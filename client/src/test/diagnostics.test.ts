@@ -26,6 +26,12 @@ suite("Should get diagnostics", () => {
         severity: vscode.DiagnosticSeverity.Warning,
         source: "cif",
       },
+      {
+        message: "'_chemical_name_common' is a non-standard data name.",
+        range: toRange(3, 0, 3, 21),
+        severity: vscode.DiagnosticSeverity.Warning,
+        source: "cif",
+      },
     ]);
   });
 });

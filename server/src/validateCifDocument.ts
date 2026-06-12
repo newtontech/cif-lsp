@@ -15,6 +15,7 @@ export async function validateCifDocument(
   connection: Connection,
   warnOnNonStandardNames: boolean,
 ): Promise<void> {
+  hasAddedInfoMessage = false;
   const diagnostics: Diagnostic[] = [];
   showParserErrors(diagnostics, tokensAndErrors.errors);
   const keys = cifKeysSet();

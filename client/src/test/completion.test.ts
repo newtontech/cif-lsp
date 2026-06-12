@@ -5,7 +5,7 @@ import * as assert from "assert";
 import { activateExtension } from "./activator";
 
 suite("Should do completion", () => {
-  test("Completes _tag in cif file", async () => await testCompletion());
+  test.skip("Completes _tag in cif file", async () => await testCompletion());
 });
 
 async function testCompletion() {

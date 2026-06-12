@@ -43,6 +43,13 @@ export interface CheckPayload {
     warnings: number;
     note?: string;
   };
+  capabilities: {
+    operations: string[];
+    operation: string;
+    status: "available" | "unavailable";
+    source: string;
+    reason?: string;
+  };
 }
 
 export function diagnosticToRich(
@@ -90,6 +97,12 @@ export function checkPayload(
       blocking,
       errors: diagnostics.filter((diagnostic) => diagnostic.severity === "error").length,
       warnings: diagnostics.filter((diagnostic) => diagnostic.severity === "warning").length,
+    },
+    capabilities: {
+      operations: ["check", "context", "complete", "hover", "symbols", "fix"],
+      operation,
+      status: "available",
+      source: "cifLspTool",
     },
   };
 }

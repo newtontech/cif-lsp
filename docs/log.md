@@ -65,6 +65,24 @@ Potential additions:
 - Space group examples
 - Unit cell parameter reference
 
+## 2026-06-13 - Closeout Pass (Issue #25)
+
+### Upstream Coverage Gap Fill
+- [x] `raw/assets/upstream-iucr-reference.md` — Concise manifest of IUCr official docs, dictionaries, tutorials, and tools
+- [x] `raw/assets/example-quartz-structure.cif` — Complete α-quartz crystal structure (adapted from IUCr teaching examples)
+
+### Cross-Reference Verification
+- All entity pages link to related concepts and synthesis pages
+- All concept pages link to relevant entities
+- index.md updated with new entries
+
+### LSP-Facing Surface Update
+- [x] `lsp-capabilities.json` sourceProvenance expanded from 1 to 6 entries (spec, tutorial, manifest)
+- [x] `wiki/synthesis/openqc-agent-context.md` enriched with capability table, provenance links, and example input reference
+
+### Tooling
+- [x] `scripts/wiki-lint.sh` — Lightweight wiki lint (orphan + broken-link check)
+
 ---
 
 *Wiki created for cif-lsp project following Karpathy-style LLM Wiki pattern.*

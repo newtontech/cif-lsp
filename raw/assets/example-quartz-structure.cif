@@ -1,0 +1,49 @@
+# ---------------------------------------------------------------------------
+# Example CIF: α-Quartz (SiO2) crystal structure
+# Source: Adapted from IUCr teaching examples and CIF writing guide
+#   https://www.iucr.org/resources/cif/wguide
+#   https://www.iucr.org/resources/cif/faq
+# This is a complete, minimal crystal structure suitable for LSP testing.
+# ---------------------------------------------------------------------------
+
+data_quartz
+    # -- Audit -----------------------------------------------------------
+    _audit.creation_date              2026-06-13
+    _audit.creation_method            'example for cif-lsp wiki'
+
+    # -- Chemical --------------------------------------------------------
+    _chemical.name_systematic         'alpha-quartz'
+    _chemical.formula_sum             'O2 Si'
+    _chemical.melting_point           1713
+
+    # -- Unit Cell -------------------------------------------------------
+    _cell.length_a                    4.9130
+    _cell.length_b                    4.9130
+    _cell.length_c                    5.4050
+    _cell.angle_alpha                 90.0
+    _cell.angle_beta                  90.0
+    _cell.angle_gamma                 120.0
+    _cell.volume                      113.06
+
+    # -- Symmetry --------------------------------------------------------
+    _symmetry.space_group_name_H-M    'P 31 2 1'
+    _symmetry.Int_Tables_number       152
+
+    # -- Atom Sites ------------------------------------------------------
+    loop_
+        _atom_site.label
+        _atom_site.type_symbol
+        _atom_site.fract_x
+        _atom_site.fract_y
+        _atom_site.fract_z
+        _atom_site.occupancy
+        _atom_site.B_iso_or_equiv
+        Si1  Si  0.46970  0.00000  0.00000  1.0  0.5
+        O1   O   0.41350  0.26690  0.11910  1.0  0.8
+
+    # -- Bond lengths (for validation testing) ---------------------------
+    loop_
+        _geom_bond.atom_site_label_1
+        _geom_bond.atom_site_label_2
+        _geom_bond.distance
+        Si1  O1  1.609

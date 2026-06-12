@@ -125,7 +125,7 @@ Each page includes links to related concepts for navigation:
 
 ## Completion Status
 
-**Status**: Complete
+**Status**: Complete — closeout pass (issue #25)
 
 All planned wiki files have been created covering:
 1. CIF file format (CIF 1.1 and CIF 2.0)
@@ -134,6 +134,15 @@ All planned wiki files have been created covering:
 4. LSP implementation details
 5. Validation and error handling
 6. Dictionary system
+
+### Closeout additions (2026-06-13)
+
+- [x] Upstream IUCr documentation link manifest (`raw/assets/upstream-iucr-reference.md`)
+- [x] Example crystal structure CIF (`raw/assets/example-quartz-structure.cif`)
+- [x] Cross-reference completeness verified across all wiki pages
+- [x] `lsp-capabilities.json` sourceProvenance expanded with spec/tutorial links
+- [x] `openqc-agent-context.md` enriched with LSP capability surface and source evidence
+- [x] Lightweight wiki lint script (`scripts/wiki-lint.sh`)
 
 ## Git Integration
 

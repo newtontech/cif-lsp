@@ -9,6 +9,12 @@ has_npm_script() {
   node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts[process.argv[1]] ? 0 : 1)" "$script"
 }
 
+# Compile TypeScript before running tests if compile script exists
+# This ensures compiled test runners are available (e.g., client/out/test/runTest)
+if has_npm_script compile; then
+  npm run compile
+fi
+
 if has_npm_script test; then
   npm test
   ran=1

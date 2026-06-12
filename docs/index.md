@@ -14,6 +14,8 @@ Source code extracts and original documentation:
 - [Parser Implementation](raw/assets/parser-ts-source.md) - CIF parser code
 - [Lexer Implementation](raw/assets/lexer-ts-source.md) - Tokenizer code
 - [Dictionary Handler](raw/assets/dictionary-handler-ts-source.md) - Dictionary processing
+- [Upstream IUCr Reference](raw/assets/upstream-iucr-reference.md) - Official upstream documentation link manifest
+- [Example CIF (Quartz)](raw/assets/example-quartz-structure.cif) - Complete crystal structure example
 
 ### Entity Pages ([entities/](entities/))
 
@@ -38,6 +40,7 @@ Integrated implementation documentation:
 - [CIF Validation](synthesis/cif-validation.md) - Validation rules and diagnostics
 - [Parser Errors](synthesis/parser-errors.md) - Error types and handling
 - [LSP Implementation](synthesis/lsp-implementation.md) - Language Server architecture
+- [OpenQC Agent Context](synthesis/openqc-agent-context.md) - Agent-facing LSP capability surface and source provenance
 
 ## Quick Reference
 

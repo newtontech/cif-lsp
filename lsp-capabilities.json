@@ -81,6 +81,31 @@
       "kind": "official_docs",
       "label": "IUCr CIF dictionaries",
       "url": "https://www.iucr.org/resources/cif/dictionaries"
+    },
+    {
+      "kind": "official_spec",
+      "label": "CIF 1.1 specification",
+      "url": "https://www.iucr.org/resources/cif/standard/cif-1-1"
+    },
+    {
+      "kind": "official_spec",
+      "label": "CIF 2.0 specification",
+      "url": "https://www.iucr.org/resources/cif/standard/cif-2-0"
+    },
+    {
+      "kind": "official_tutorial",
+      "label": "IUCr CIF writing guide",
+      "url": "https://www.iucr.org/resources/cif/wguide"
+    },
+    {
+      "kind": "official_tutorial",
+      "label": "IUCr CIF FAQ",
+      "url": "https://www.iucr.org/resources/cif/faq"
+    },
+    {
+      "kind": "upstream_manifest",
+      "label": "Upstream IUCr reference links",
+      "path": "raw/assets/upstream-iucr-reference.md"
     }
   ]
 }

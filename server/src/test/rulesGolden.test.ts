@@ -1,0 +1,192 @@
+import * as assert from "assert";
+import { execFileSync } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
+
+/**
+ * Golden test for the cif.syntax.duplicate_tag rule (issue #15).
+ *
+ * Drives the compiled `cif-lsp-tool` CLI exactly like the agent-smoke target
+ * and OpenQC consumers do, so the assertion path mirrors production. This
+ * keeps the test CI-stable (no VSCode display required) and ties the golden
+ * JSON, the rule manifest, and the CLI explain/rules endpoints together.
+ */
+
+const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
+const TOOL = path.join(REPO_ROOT, "server", "out", "cifLspTool.js");
+const FIXTURE_DIR = path.join(REPO_ROOT, "server", "test", "fixtures", "rules");
+const INVALID_CIF = path.join(FIXTURE_DIR, "duplicate_tag.cif");
+const VALID_CIF = path.join(FIXTURE_DIR, "duplicate_tag_valid.cif");
+const GOLDEN_JSON = path.join(FIXTURE_DIR, "duplicate_tag.json");
+const RULE_ID = "cif.syntax.duplicate_tag";
+
+interface CheckPayload {
+  diagnostics: Array<{
+    code: string;
+    severity: string;
+    category: string;
+    source: string;
+    range: {
+      start: { line: number; character: number };
+      end: { line: number; character: number };
+    };
+    message: string;
+    blocking: boolean;
+    fix_hints: string[];
+    manual_ref: string | null;
+  }>;
+}
+
+interface GoldenOccurrence {
+  line_start: number;
+  char_start: number;
+  line_end: number;
+  char_end: number;
+  message: string;
+}
+
+interface GoldenFile {
+  rule_id: string;
+  severity: string;
+  category: string;
+  source: string;
+  blocking: boolean;
+  manual_ref: string | null;
+  fix_hints: string[];
+  message_template: string;
+  occurrences: GoldenOccurrence[];
+}
+
+interface ExplainPayload {
+  operation: "explain";
+  ok: boolean;
+  rule: {
+    rule_id: string;
+    severity: string;
+    category: string;
+    source: string;
+    fix_hints: string[];
+    manual_ref: string | null;
+  } | null;
+}
+
+interface RulesPayload {
+  operation: "rules";
+  rules: Array<{
+    rule_id: string;
+    severity: string;
+    category: string;
+    source: string;
+  }>;
+}
+
+function runTool(args: string[]): unknown {
+  return JSON.parse(
+    execFileSync(process.execPath, [TOOL, ...args], {
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+    }),
+  );
+}
+
+describe("cif.syntax.duplicate_tag rule (issue #15)", function () {
+  this.timeout(20000);
+
+  it("emits exactly the rule's diagnostics on the invalid fixture", function () {
+    const payload = runTool([
+      "check",
+      INVALID_CIF,
+      "--format",
+      "json",
+    ]) as CheckPayload;
+    const ruleDiagnostics = payload.diagnostics.filter(
+      (diagnostic) => diagnostic.code === RULE_ID,
+    );
+
+    const golden = JSON.parse(
+      fs.readFileSync(GOLDEN_JSON, "utf8"),
+    ) as GoldenFile;
+
+    assert.strictEqual(
+      ruleDiagnostics.length,
+      golden.occurrences.length,
+      "expected the golden number of duplicate_tag diagnostics",
+    );
+
+    // Stable rule-level metadata.
+    ruleDiagnostics.forEach((diagnostic) => {
+      assert.strictEqual(diagnostic.severity, golden.severity);
+      assert.strictEqual(diagnostic.category, golden.category);
+      assert.strictEqual(diagnostic.source, golden.source);
+      assert.strictEqual(diagnostic.blocking, golden.blocking);
+      assert.deepStrictEqual(diagnostic.fix_hints, golden.fix_hints);
+      assert.strictEqual(diagnostic.manual_ref, golden.manual_ref);
+    });
+
+    // Stable per-occurrence range + message, in source order.
+    ruleDiagnostics.forEach((diagnostic, index) => {
+      const expected = golden.occurrences[index];
+      const { range } = diagnostic;
+      assert.deepStrictEqual(range.start, {
+        line: expected.line_start,
+        character: expected.char_start,
+      });
+      assert.deepStrictEqual(range.end, {
+        line: expected.line_end,
+        character: expected.char_end,
+      });
+      assert.strictEqual(diagnostic.message, expected.message);
+    });
+  });
+
+  it("does not fire on a fixture where every tag is unique", function () {
+    const payload = runTool([
+      "check",
+      VALID_CIF,
+      "--format",
+      "json",
+    ]) as CheckPayload;
+    const ruleDiagnostics = payload.diagnostics.filter(
+      (diagnostic) => diagnostic.code === RULE_ID,
+    );
+    assert.deepStrictEqual(ruleDiagnostics, []);
+  });
+
+  it("exposes the rule via the explain operation", function () {
+    const payload = runTool([
+      "explain",
+      RULE_ID,
+      "--format",
+      "json",
+    ]) as ExplainPayload;
+    assert.strictEqual(payload.operation, "explain");
+    assert.strictEqual(payload.ok, true);
+    assert.ok(payload.rule, "explain payload must include the rule descriptor");
+    assert.strictEqual(payload.rule!.rule_id, RULE_ID);
+    assert.strictEqual(payload.rule!.severity, "error");
+    assert.strictEqual(payload.rule!.category, "syntax");
+    assert.ok(payload.rule!.fix_hints.length >= 1);
+    assert.ok(payload.rule!.manual_ref);
+  });
+
+  it("lists the rule via the rules operation", function () {
+    const payload = runTool(["rules", "--format", "json"]) as RulesPayload;
+    assert.strictEqual(payload.operation, "rules");
+    const entry = payload.rules.find((rule) => rule.rule_id === RULE_ID);
+    assert.ok(entry, "rules export must include cif.syntax.duplicate_tag");
+    assert.strictEqual(entry!.severity, "error");
+    assert.strictEqual(entry!.category, "syntax");
+  });
+
+  it("keeps the rule manifest in sync with the TypeScript registry", function () {
+    const payload = runTool(["rules", "--format", "json"]) as RulesPayload;
+    const entry = payload.rules.find((rule) => rule.rule_id === RULE_ID);
+    const manifestPath = path.join(REPO_ROOT, "rules", "diagnostics.yaml");
+    const manifest = fs.readFileSync(manifestPath, "utf8");
+    assert.ok(
+      manifest.includes(`rule_id: ${RULE_ID}`),
+      "manifest must declare the rule",
+    );
+    assert.ok(entry, "rules export and manifest must agree");
+  });
+});

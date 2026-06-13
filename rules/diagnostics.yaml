@@ -1,0 +1,27 @@
+# cif-lsp diagnostic rule manifest
+#
+# OpenQC / LSP rule export. Each entry describes a first-class diagnostic rule
+# that cif-lsp can emit via `cif-lsp-tool check --format json`. The schema
+# mirrors the rich-diagnostic fields surfaced by diagnostic engine v1.
+#
+# Source of truth for rule_id, severity, category, and fix hints is the
+# TypeScript registry at server/src/rules/cifRules.ts. Keep this manifest in
+# sync when adding rules.
+schema: OpenQCDiagnosticsManifest
+version: "1.0"
+software: cif
+diagnostic_engine: "1.0"
+rules:
+  - rule_id: cif.syntax.duplicate_tag
+    severity: error
+    category: syntax
+    source: cif-lsp
+    source_of_truth: IUCr CIF syntax guidance
+    description: >-
+      A data name (_tag) is declared more than once inside the same data block.
+      CIF syntax requires each data name to appear at most once per block.
+    message_template: "Duplicate data name '<tag>' in the same data block."
+    fix_hints:
+      - Rename or remove one of the duplicate _tag definitions in this data block.
+      - If the values differ, choose the intended value and delete the redundant tag.
+    manual_ref: https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax

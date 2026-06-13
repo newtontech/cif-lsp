@@ -1,0 +1,6 @@
+# Fixture for rule cif.syntax.duplicate_tag (issue #15).
+# The tag _cell_length_a is declared twice inside data_duplicate_tag.
+data_duplicate_tag
+_cell_length_a 5.6402
+_cell_length_b 5.6402
+_cell_length_a 5.6500

@@ -18,14 +18,17 @@
   "capabilities": [
     "agent-envelope",
     "agent-json-cli",
+    "capabilities-manifest",
     "completion",
     "diagnostic-engine-v1",
     "diagnostics",
     "fix-preview",
+    "format",
     "hover",
     "llm-wiki",
     "manifest",
     "openqc-context",
+    "preflight",
     "rich-diagnostics",
     "routing",
     "source-provenance",
@@ -40,7 +43,12 @@
       "complete",
       "hover",
       "symbols",
-      "fix"
+      "fix",
+      "format",
+      "explain",
+      "rules",
+      "logs",
+      "preflight"
     ],
     "jsonFormat": true,
     "failOnBlocking": true

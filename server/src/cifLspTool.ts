@@ -23,6 +23,7 @@ import {
   getRuleForErrorType,
   ruleManifest,
 } from "./rules/cifRules";
+import { formatCif } from "./format/cifFormatter";
 
 const OPERATIONS = new Set([
   "check",
@@ -31,8 +32,12 @@ const OPERATIONS = new Set([
   "hover",
   "symbols",
   "fix",
+  "format",
   "explain",
   "rules",
+  "capabilities",
+  "logs",
+  "preflight",
 ]);
 
 function main(argv: string[]): number {
@@ -40,7 +45,10 @@ function main(argv: string[]): number {
   const input = argv[1];
   if (operation === "--help" || operation === "-h") {
     console.log(
-      "usage: cif-lsp-tool <check|context|complete|hover|symbols|fix> <path> --format json [--line N --character N]",
+      "usage: cif-lsp-tool <check|context|complete|hover|symbols|fix|format> <path> --format json [--line N --character N] [--write]",
+    );
+    console.log(
+      "       cif-lsp-tool format <path> [--write]    # safe, idempotent formatter",
     );
     console.log(
       "       cif-lsp-tool explain <rule_id>          # describe a single diagnostic rule",
@@ -48,11 +56,20 @@ function main(argv: string[]): number {
     console.log(
       "       cif-lsp-tool rules                      # list exported diagnostic rules",
     );
+    console.log(
+      "       cif-lsp-tool capabilities               # export LSP/OpenQC capability manifest",
+    );
+    console.log(
+      "       cif-lsp-tool logs <path>                # runtime log parser capability",
+    );
+    console.log(
+      "       cif-lsp-tool preflight <path>           # universal generated-input preflight checks",
+    );
     return 0;
   }
   if (!operation || !OPERATIONS.has(operation)) {
     console.error(
-      "usage: cif-lsp-tool <check|context|complete|hover|symbols|fix> <path> --format json [--line N --character N]",
+      "usage: cif-lsp-tool <check|context|complete|hover|symbols|fix|format> <path> --format json [--line N --character N] [--write]",
     );
     return 2;
   }
@@ -65,17 +82,45 @@ function main(argv: string[]): number {
     console.log(JSON.stringify(explainPayload(ruleId), null, 2));
     return 0;
   }
+  if (operation === "capabilities") {
+    console.log(JSON.stringify(capabilitiesPayload(), null, 2));
+    return 0;
+  }
+  if (operation === "logs") {
+    if (!input) {
+      console.error("usage: cif-lsp-tool logs <path> --format json");
+      return 2;
+    }
+    console.log(JSON.stringify(logsPayload(input), null, 2));
+    return 0;
+  }
   if (!input) {
     console.error(
-      "usage: cif-lsp-tool <check|context|complete|hover|symbols|fix> <path> --format json [--line N --character N]",
+      "usage: cif-lsp-tool <check|context|complete|hover|symbols|fix|format> <path> --format json [--line N --character N] [--write]",
     );
     return 2;
   }
   const options = parseOptions(argv.slice(2));
   const fileType = path.extname(input).replace(/^\./, "") || "cif";
+
+  if (operation === "format") {
+    const payload = formatPayload(input, options.write === true);
+    if (options.write === true && payload.summary.written === true) {
+      // File rewritten; the JSON payload still reports the diff summary.
+    }
+    console.log(JSON.stringify(payload, null, 2));
+    return 0;
+  }
+
   const diagnostics = collectDiagnostics(input)
     .map((diagnostic) => diagnosticToRich(diagnostic, input, fileType))
     .map(attachRuleMetadata);
+
+  if (operation === "preflight") {
+    console.log(JSON.stringify(preflightPayload(input, diagnostics), null, 2));
+    return 0;
+  }
+
   const payload = buildOperationPayload(
     input,
     operation,
@@ -87,8 +132,12 @@ function main(argv: string[]): number {
   return 0;
 }
 
-function parseOptions(argv: string[]): { line: number; character: number } {
-  const options = { line: 0, character: 0 };
+function parseOptions(argv: string[]): {
+  line: number;
+  character: number;
+  write: boolean;
+} {
+  const options = { line: 0, character: 0, write: false };
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === "--line" && argv[index + 1]) {
       options.line = Math.max(Number.parseInt(argv[index + 1], 10) || 0, 0);
@@ -99,6 +148,8 @@ function parseOptions(argv: string[]): { line: number; character: number } {
         0,
       );
       index += 1;
+    } else if (argv[index] === "--write") {
+      options.write = true;
     }
   }
   return options;
@@ -207,17 +258,7 @@ function buildOperationPayload(
       diagnosticsAtPosition(diagnostics, line, character).length
         ? diagnosticsAtPosition(diagnostics, line, character)
         : diagnostics
-    ).map((diagnostic, index) => ({
-      title: `Review ${diagnostic.code}: ${diagnostic.message}`,
-      kind: "quickfix",
-      diagnostic_code: diagnostic.code,
-      diagnostic_range: diagnostic.range,
-      confidence: diagnostic.confidence,
-      blocking: diagnostic.blocking,
-      safe_to_auto_apply: false,
-      edit: null,
-      data: { index, source: diagnostic.source },
-    }));
+    ).map((diagnostic, index) => buildCodeAction(diagnostic, index, text));
     markAvailability(
       payload,
       operation,
@@ -392,6 +433,26 @@ function dedupeItems<T extends Record<string, unknown>>(
   return result;
 }
 
+/**
+ * Canonical list of operations exposed by the agent CLI. The same list is
+ * surfaced by every payload's `capabilities.operations` so OpenQC and other
+ * consumers can rely on a single source of truth.
+ */
+const CAPABILITY_OPERATIONS: readonly string[] = [
+  "check",
+  "context",
+  "complete",
+  "hover",
+  "symbols",
+  "fix",
+  "format",
+  "explain",
+  "rules",
+  "capabilities",
+  "logs",
+  "preflight",
+];
+
 function markAvailability(
   payload: CheckPayload & Record<string, unknown>,
   operation: string,
@@ -399,7 +460,7 @@ function markAvailability(
   reason = "No data available for this operation.",
 ) {
   payload.capabilities = {
-    operations: ["check", "context", "complete", "hover", "symbols", "fix"],
+    operations: [...CAPABILITY_OPERATIONS],
     operation,
     status: available ? "available" : "unavailable",
     source: "cifLspTool",
@@ -451,7 +512,7 @@ function rulesPayload(): RuleManifestPayload {
       warnings: rules.filter((rule) => rule.severity === "warning").length,
     },
     capabilities: {
-      operations: ["check", "context", "complete", "hover", "symbols", "fix"],
+      operations: [...CAPABILITY_OPERATIONS],
       operation: "rules",
       status: rules.length > 0 ? "available" : "unavailable",
       source: "cifLspTool",
@@ -501,7 +562,7 @@ function explainPayload(ruleId: string): ExplainPayload {
     requested_rule_id: ruleId,
     summary: { found, ...(note ? { note } : {}) },
     capabilities: {
-      operations: ["check", "context", "complete", "hover", "symbols", "fix"],
+      operations: [...CAPABILITY_OPERATIONS],
       operation: "explain",
       status: found ? "available" : "unavailable",
       source: "cifLspTool",
@@ -532,6 +593,511 @@ function attachRuleMetadata(diagnostic: RichDiagnostic): RichDiagnostic {
     category: rule.category,
     fix_hints: [...rule.fix_hints],
     manual_ref: rule.manual_ref,
+  };
+}
+
+/**
+ * The canonical cell-parameter tag list. Mirrors the validator's
+ * CELL_PARAMETER_TAGS so the code action can deterministically insert the
+ * missing declarations as placeholder (`?`) values.
+ */
+const CELL_PARAMETER_TAGS_CANONICAL: readonly string[] = [
+  "_cell_length_a",
+  "_cell_length_b",
+  "_cell_length_c",
+  "_cell_angle_alpha",
+  "_cell_angle_beta",
+  "_cell_angle_gamma",
+];
+
+interface CodeAction {
+  title: string;
+  kind: string;
+  diagnostic_code: string;
+  diagnostic_range: Range;
+  confidence: number;
+  blocking: boolean;
+  safe_to_auto_apply: boolean;
+  edit: {
+    edits: Array<{
+      range: Range;
+      new_text: string;
+    }>;
+  } | null;
+  data: Record<string, unknown>;
+}
+
+/**
+ * Builds a code action for a single diagnostic. The action is marked
+ * `safe_to_auto_apply: true` only when the repair is deterministic and cannot
+ * destroy user data:
+ * - `cif.cell.missing_parameters` inserts the missing `_cell_*` tags with
+ *   CIF's missing-data marker (`?`) so the user can fill them in.
+ *
+ * Every other diagnostic currently surfaces a review-only quick-fix that
+ * points the user at the relevant rule, fix hints, and manual reference
+ * without rewriting the file.
+ */
+function buildCodeAction(
+  diagnostic: RichDiagnostic,
+  index: number,
+  sourceText: string,
+): CodeAction {
+  if (diagnostic.code === "cif.cell.missing_parameters") {
+    const edit = buildMissingCellParametersEdit(diagnostic, sourceText);
+    if (edit !== null) {
+      return {
+        title: `Insert missing unit-cell parameter tags for ${diagnostic.code}`,
+        kind: "quickfix",
+        diagnostic_code: diagnostic.code,
+        diagnostic_range: diagnostic.range,
+        confidence: diagnostic.confidence,
+        blocking: diagnostic.blocking,
+        safe_to_auto_apply: true,
+        edit,
+        data: { index, source: diagnostic.source },
+      };
+    }
+  }
+  return {
+    title: `Review ${diagnostic.code}: ${diagnostic.message}`,
+    kind: "quickfix",
+    diagnostic_code: diagnostic.code,
+    diagnostic_range: diagnostic.range,
+    confidence: diagnostic.confidence,
+    blocking: diagnostic.blocking,
+    safe_to_auto_apply: false,
+    edit: null,
+    data: { index, source: diagnostic.source },
+  };
+}
+
+/**
+ * Computes a deterministic text edit for `cif.cell.missing_parameters`.
+ *
+ * The edit inserts every missing `_cell_*` tag (canonical CIF core name
+ * shape) immediately after the data-block header, each set to the CIF
+ * missing-data marker `?`. The edit range is zero-width and anchored at the
+ * end of the block header line so applying it never overwrites existing
+ * content.
+ */
+function buildMissingCellParametersEdit(
+  diagnostic: RichDiagnostic,
+  sourceText: string,
+): { edits: Array<{ range: Range; new_text: string }> } | null {
+  const blockLine = diagnostic.range.start.line;
+  const lines = sourceText.split(/\r?\n/);
+  if (blockLine >= lines.length) {
+    return null;
+  }
+  const present = new Set(
+    lines
+      .map((line) => /^(_cell_\S+)[ \t]/.exec(line.trim()))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => m[1].toLowerCase()),
+  );
+  const missing = CELL_PARAMETER_TAGS_CANONICAL.filter(
+    (tag) => !present.has(tag.toLowerCase()),
+  );
+  if (missing.length === 0) {
+    return null;
+  }
+  const insertion = missing.map((tag) => `${tag} ?`).join("\n") + "\n";
+  return {
+    edits: [
+      {
+        range: {
+          start: { line: blockLine + 1, character: 0 },
+          end: { line: blockLine + 1, character: 0 },
+        },
+        new_text: insertion,
+      },
+    ],
+  };
+}
+
+interface FormatPayload {
+  uri: string;
+  operation: "format";
+  ok: boolean;
+  version: "1.0";
+  software: "cif";
+  diagnostic_engine: "1.0";
+  changed: boolean;
+  idempotent: boolean;
+  formatted_preview: string;
+  summary: {
+    lines: number;
+    written: boolean;
+    trailing_whitespace_trimmed: number;
+    blank_runs_collapsed: number;
+    tag_runs_aligned: number;
+    line_endings_normalized: boolean;
+    trailing_newline_added: boolean;
+  };
+  capabilities: {
+    operations: string[];
+    operation: "format";
+    status: "available" | "unavailable";
+    source: string;
+  };
+}
+
+/**
+ * Formats a CIF file with the safe, idempotent formatter. When `write` is
+ * true the formatted text is written back to `input`; otherwise the JSON
+ * payload includes a `formatted_preview` field for caller inspection.
+ */
+function formatPayload(input: string, write: boolean): FormatPayload {
+  const uri = pathToFileURL(path.resolve(input)).toString();
+  let source = "";
+  try {
+    source = fs.readFileSync(input, "utf8");
+  } catch {
+    return {
+      uri,
+      operation: "format",
+      ok: false,
+      version: "1.0",
+      software: "cif",
+      diagnostic_engine: "1.0",
+      changed: false,
+      idempotent: true,
+      formatted_preview: "",
+      summary: {
+        lines: 0,
+        written: false,
+        trailing_whitespace_trimmed: 0,
+        blank_runs_collapsed: 0,
+        tag_runs_aligned: 0,
+        line_endings_normalized: false,
+        trailing_newline_added: false,
+      },
+      capabilities: {
+        operations: [...CAPABILITY_OPERATIONS],
+        operation: "format",
+        status: "unavailable",
+        source: "cifLspTool",
+      },
+    };
+  }
+  const result = formatCif(source);
+  const secondPass = formatCif(result.formatted);
+  const idempotent = !secondPass.changed;
+  let written = false;
+  if (write && result.changed) {
+    fs.writeFileSync(input, result.formatted, "utf8");
+    written = true;
+  }
+  return {
+    uri,
+    operation: "format",
+    ok: true,
+    version: "1.0",
+    software: "cif",
+    diagnostic_engine: "1.0",
+    changed: result.changed,
+    idempotent,
+    formatted_preview: write ? "" : result.formatted,
+    summary: {
+      lines: result.summary.lines,
+      written,
+      trailing_whitespace_trimmed: result.summary.trailing_whitespace_trimmed,
+      blank_runs_collapsed: result.summary.blank_runs_collapsed,
+      tag_runs_aligned: result.summary.tag_runs_aligned,
+      line_endings_normalized: result.summary.line_endings_normalized,
+      trailing_newline_added: result.summary.trailing_newline_added,
+    },
+    capabilities: {
+      operations: [...CAPABILITY_OPERATIONS],
+      operation: "format",
+      status: "available",
+      source: "cifLspTool",
+    },
+  };
+}
+
+interface CapabilitiesPayload {
+  uri: null;
+  operation: "capabilities";
+  ok: boolean;
+  version: "1.0";
+  software: "cif";
+  diagnostic_engine: "1.0";
+  capabilities: {
+    schema: string;
+    manifest_path: string;
+    operations: readonly string[];
+    diagnostic_engine_version: "1.0";
+    envelope: "DiagnosticEnvelope/v1";
+    agent_cli: {
+      command: string;
+      json_format: boolean;
+      fail_on_blocking: boolean;
+    };
+    capability_flags: {
+      completion: boolean;
+      diagnostics: boolean;
+      hover: boolean;
+      symbols: boolean;
+      code_actions: boolean;
+      format: boolean;
+      rules_manifest: boolean;
+      runtime_log_parser: boolean;
+      preflight: boolean;
+    };
+    operation: "capabilities";
+    status: "available";
+    source: string;
+  };
+}
+
+/**
+ * Static LSP/OpenQC capability manifest surfaced through the agent CLI. The
+ * flags mirror `lsp-capabilities.json` so consumers that prefer the JSON
+ * envelope can read either source.
+ */
+function capabilitiesPayload(): CapabilitiesPayload {
+  return {
+    uri: null,
+    operation: "capabilities",
+    ok: true,
+    version: "1.0",
+    software: "cif",
+    diagnostic_engine: "1.0",
+    capabilities: {
+      schema: "OpenQCLspCapabilities",
+      manifest_path: "lsp-capabilities.json",
+      operations: CAPABILITY_OPERATIONS,
+      diagnostic_engine_version: "1.0",
+      envelope: "DiagnosticEnvelope/v1",
+      agent_cli: {
+        command: "cif-lsp-tool",
+        json_format: true,
+        fail_on_blocking: true,
+      },
+      capability_flags: {
+        completion: true,
+        diagnostics: true,
+        hover: true,
+        symbols: true,
+        code_actions: true,
+        format: true,
+        rules_manifest: true,
+        runtime_log_parser: false,
+        preflight: true,
+      },
+      operation: "capabilities",
+      status: "available",
+      source: "cifLspTool",
+    },
+  };
+}
+
+interface LogsPayload {
+  uri: string;
+  operation: "logs";
+  ok: boolean;
+  version: "1.0";
+  software: "cif";
+  diagnostic_engine: "1.0";
+  capability: {
+    id: "runtime-log-parser";
+    status: "unavailable";
+    reason: string;
+    source_of_truth: string;
+  };
+  entries: never[];
+  summary: {
+    count: number;
+    note: string;
+  };
+  capabilities: {
+    operations: readonly string[];
+    operation: "logs";
+    status: "unavailable";
+    source: string;
+    reason: string;
+  };
+}
+
+/**
+ * Runtime log parser capability envelope. CIF is a static-data format with
+ * no runtime log semantics, so the capability reports a stable
+ * `unavailable` status with a human-readable reason rather than silently
+ * omitting the operation. This satisfies the OpenQC contract: "OpenQC
+ * either launches the LSP for this capability or reports the backend
+ * unavailable clearly."
+ */
+function logsPayload(input: string): LogsPayload {
+  const uri = pathToFileURL(path.resolve(input)).toString();
+  const reason =
+    "CIF is a static-data format and does not produce runtime logs; the runtime-log-parser capability is intentionally not implemented for cif-lsp.";
+  return {
+    uri,
+    operation: "logs",
+    ok: true,
+    version: "1.0",
+    software: "cif",
+    diagnostic_engine: "1.0",
+    capability: {
+      id: "runtime-log-parser",
+      status: "unavailable",
+      reason,
+      source_of_truth:
+        "issue #22 [Capability] cif-lsp: Runtime log parser",
+    },
+    entries: [],
+    summary: { count: 0, note: reason },
+    capabilities: {
+      operations: CAPABILITY_OPERATIONS,
+      operation: "logs",
+      status: "unavailable",
+      source: "cifLspTool",
+      reason,
+    },
+  };
+}
+
+interface PreflightPayload {
+  uri: string;
+  operation: "preflight";
+  ok: boolean;
+  version: "1.0";
+  software: "cif";
+  diagnostic_engine: "1.0";
+  envelope: "DiagnosticEnvelope/v1";
+  diagnostics: RichDiagnostic[];
+  artifact_graph: {
+    artifacts: Array<{
+      role: string;
+      path: string;
+      file_type: string;
+      version_assumption: string;
+    }>;
+    edges: Array<{
+      from: string;
+      to: string;
+      relationship: string;
+    }>;
+  };
+  version_assumptions: Array<{
+    artifact: string;
+    assumption: string;
+    source: string;
+  }>;
+  regression_fixtures: {
+    valid: string[];
+    invalid: string[];
+    source: string;
+  };
+  summary: {
+    count: number;
+    blocking: number;
+    errors: number;
+    warnings: number;
+    artifacts: number;
+    note?: string;
+  };
+  capabilities: {
+    operations: readonly string[];
+    operation: "preflight";
+    status: "available";
+    source: string;
+  };
+}
+
+/**
+ * Universal generated-input preflight envelope.
+ *
+ * Re-uses the existing diagnostic pipeline (rules engine, schema checks) so
+ * cif-lsp participates in the same generic generated-input preflight model
+ * as the rest of the newtontech scientific LSP fleet. Adds three generic
+ * cross-cutting sections that the parent router (`bohrium_skills`) consumes:
+ * - `artifact_graph`: a generic artifact-role model describing the file
+ *   under inspection.
+ * - `version_assumptions`: explicit version metadata so agents can decide
+ *   whether the runtime/image version is known.
+ * - `regression_fixtures`: paths to the rule fixtures so fleet-wide
+ *   regression evidence is machine-readable.
+ */
+function preflightPayload(
+  input: string,
+  diagnostics: RichDiagnostic[],
+): PreflightPayload {
+  const uri = pathToFileURL(path.resolve(input)).toString();
+  const fileType = path.extname(input).replace(/^\./, "") || "cif";
+  let source = "";
+  try {
+    source = fs.readFileSync(input, "utf8");
+  } catch {
+    source = "";
+  }
+  const isCif2 = source.startsWith("#\\#CIF_2.0");
+  const blocking = diagnostics.filter((d) => d.blocking).length;
+  return {
+    uri,
+    operation: "preflight",
+    ok: blocking === 0,
+    version: "1.0",
+    software: "cif",
+    diagnostic_engine: "1.0",
+    envelope: "DiagnosticEnvelope/v1",
+    diagnostics,
+    artifact_graph: {
+      artifacts: [
+        {
+          role: "primary-input",
+          path: input,
+          file_type: fileType,
+          version_assumption: isCif2 ? "CIF-2.0" : "CIF-1.1",
+        },
+      ],
+      edges: [],
+    },
+    version_assumptions: [
+      {
+        artifact: input,
+        assumption: isCif2 ? "CIF-2.0" : "CIF-1.1",
+        source: isCif2
+          ? "file header marker `#\\\\#CIF_2.0`"
+          : "default; no CIF 2.0 header detected",
+      },
+    ],
+    regression_fixtures: {
+      valid: [
+        "server/test/fixtures/rules/duplicate_tag_valid.cif",
+        "server/test/fixtures/rules/unclosed_loop_valid.cif",
+        "server/test/fixtures/rules/loop_arity_mismatch_valid.cif",
+        "server/test/fixtures/rules/invalid_uncertainty_valid.cif",
+        "server/test/fixtures/rules/malformed_data_block_valid.cif",
+        "server/test/fixtures/rules/missing_cell_parameters_valid.cif",
+        "server/test/fixtures/rules/atom_site_symmetry_mismatch_valid.cif",
+      ],
+      invalid: [
+        "server/test/fixtures/rules/duplicate_tag.cif",
+        "server/test/fixtures/rules/unclosed_loop.cif",
+        "server/test/fixtures/rules/loop_arity_mismatch.cif",
+        "server/test/fixtures/rules/invalid_uncertainty.cif",
+        "server/test/fixtures/rules/malformed_data_block.cif",
+        "server/test/fixtures/rules/missing_cell_parameters.cif",
+        "server/test/fixtures/rules/atom_site_symmetry_mismatch.cif",
+      ],
+      source: "server/test/fixtures/rules",
+    },
+    summary: {
+      count: diagnostics.length,
+      blocking,
+      errors: diagnostics.filter((d) => d.severity === "error").length,
+      warnings: diagnostics.filter((d) => d.severity === "warning").length,
+      artifacts: 1,
+    },
+    capabilities: {
+      operations: CAPABILITY_OPERATIONS,
+      operation: "preflight",
+      status: "available",
+      source: "cifLspTool",
+    },
   };
 }
 

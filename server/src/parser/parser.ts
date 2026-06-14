@@ -198,6 +198,14 @@ function loop(data: Data): boolean {
         }
         return true;
       }
+    } else {
+      // loop_ not followed by any data name: the loop header is never opened.
+      data.errors.push(new ParserError(ParserErrorType.UnclosedLoop, loop));
+      data.loop = null;
+      if (token !== null) {
+        data.index--;
+      }
+      return true;
     }
   }
   data.index = previousIndex;

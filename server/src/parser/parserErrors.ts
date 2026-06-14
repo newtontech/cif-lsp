@@ -8,6 +8,7 @@ export enum ParserErrorType {
   DuplicateData,
   DuplicateTag,
   InvalidLoop,
+  UnclosedLoop,
   ValueMissing,
   UnexpectedValue,
   LoopValueMismatch,

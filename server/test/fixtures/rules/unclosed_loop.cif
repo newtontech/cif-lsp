@@ -1,0 +1,7 @@
+# Fixture for rule cif.loop.unclosed_loop (issue #16).
+# The loop_ keyword is not followed by any data name: the loop header is
+# never opened with a _tag, so the loop is unclosed / malformed.
+data_unclosed_loop
+loop_
+data_next_block
+_cell_length_a 5.6402

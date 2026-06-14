@@ -1,0 +1,22 @@
+{
+  "rule_id": "cif.loop.unclosed_loop",
+  "severity": "error",
+  "category": "syntax",
+  "source": "cif-lsp",
+  "blocking": true,
+  "manual_ref": "https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax",
+  "fix_hints": [
+    "Add at least one data name (_tag) on the line(s) following loop_.",
+    "Remove the stray loop_ keyword if no tabular data is intended."
+  ],
+  "message_template": "'<loop_>' is not followed by any data name.",
+  "occurrences": [
+    {
+      "line_start": 4,
+      "char_start": 0,
+      "line_end": 4,
+      "char_end": 5,
+      "message": "'loop_' is not followed by any data name."
+    }
+  ]
+}

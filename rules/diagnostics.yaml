@@ -25,3 +25,16 @@ rules:
       - Rename or remove one of the duplicate _tag definitions in this data block.
       - If the values differ, choose the intended value and delete the redundant tag.
     manual_ref: https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax
+  - rule_id: cif.loop.unclosed_loop
+    severity: error
+    category: syntax
+    source: cif-lsp
+    source_of_truth: IUCr CIF syntax guidance
+    description: >-
+      A loop_ keyword is not followed by any data name. CIF syntax requires a
+      loop_ header to declare at least one _tag before its value rows.
+    message_template: "'<loop_>' is not followed by any data name."
+    fix_hints:
+      - Add at least one data name (_tag) on the line(s) following loop_.
+      - Remove the stray loop_ keyword if no tabular data is intended.
+    manual_ref: https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax

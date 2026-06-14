@@ -1,0 +1,7 @@
+# Fixture for rule cif.loop.unclosed_loop (issue #16).
+# A well-formed loop: one data name followed by a complete value row.
+# This file must NOT trigger the rule.
+data_closed_loop
+loop_
+_atom_site_label
+Si

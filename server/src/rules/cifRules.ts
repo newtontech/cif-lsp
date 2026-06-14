@@ -36,6 +36,16 @@ const duplicateTagMessage = (token: Token | undefined): string => {
     : "Duplicate data name in the same data block.";
 };
 
+const UNCLOSED_LOOP_HINTS: string[] = [
+  "Add at least one data name (_tag) on the line(s) following loop_.",
+  "Remove the stray loop_ keyword if no tabular data is intended.",
+];
+
+const unclosedLoopMessage = (token: Token | undefined): string => {
+  const keyword = token?.text ?? "loop_";
+  return `'${keyword}' is not followed by any data name.`;
+};
+
 const rules: readonly CifRule[] = [
   {
     rule_id: "cif.syntax.duplicate_tag",
@@ -46,6 +56,17 @@ const rules: readonly CifRule[] = [
     source: "cif-lsp",
     message: duplicateTagMessage,
     fix_hints: DUPLICATE_TAG_HINTS,
+    manual_ref: "https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax",
+  },
+  {
+    rule_id: "cif.loop.unclosed_loop",
+    error_type: ParserErrorType.UnclosedLoop,
+    severity_label: "error",
+    severity: DiagnosticSeverity.Error,
+    category: "syntax",
+    source: "cif-lsp",
+    message: unclosedLoopMessage,
+    fix_hints: UNCLOSED_LOOP_HINTS,
     manual_ref: "https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax",
   },
 ];

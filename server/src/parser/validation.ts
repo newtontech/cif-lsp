@@ -1,9 +1,10 @@
-import { ParserResult, Token, TokenType } from "./token";
+import { isValue, ParserResult, Token, TokenType } from "./token";
 import { ParserError, ParserErrorType } from "./parserErrors";
 
 export function validateParsedData(data: ParserResult): void {
   checkDuplicateDataBlocks(data);
   checkDuplicateTagsInBlocks(data);
+  checkInvalidUncertainty(data);
 }
 
 function checkDuplicateDataBlocks(data: ParserResult): void {
@@ -133,5 +134,57 @@ export function validateTokens(result: ParserResult): void {
         ),
       );
     }
+  }
+}
+
+/**
+ * Numeric base for an uncertainty suffix. Mirrors the lexer's NUMBER base so
+ * the validator only flags tokens the lexer already treated as numeric.
+ */
+const UNCERTAINTY_BASE =
+  "[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?";
+
+/**
+ * Matches a numeric value immediately followed by a parenthesised group:
+ *   <base>(<first-group>)<rest>
+ * Captures the first parenthesised group and any trailing text so the caller
+ * can decide whether the suffix is a well-formed CIF standard-uncertainty
+ * `(<digits>)`.
+ */
+const UNCERTAINTY_FORM = new RegExp(
+  `^(${UNCERTAINTY_BASE})\\(([^\\)]*)\\)(.*)$`,
+);
+
+function isWellFormedUncertaintySuffix(inner: string, rest: string): boolean {
+  return /^\d+$/.test(inner) && rest === "";
+}
+
+/**
+ * Flags CIF numeric values that carry a malformed standard-uncertainty suffix.
+ *
+ * CIF allows a numeric value to be written as `<number>(<digits>)`, where the
+ * parenthesised digits are the standard uncertainty in the last quoted digits
+ * (for example `12.34(5)` means 12.34 ± 0.05). Values such as `12.34(ab)`,
+ * `12.34(5.6)`, `12.34()`, `12.34(5)(6)`, or `1.2(3)x` look numeric but carry
+ * a suffix that is not a valid uncertainty annotation, so they are reported.
+ */
+function checkInvalidUncertainty(data: ParserResult): void {
+  for (const token of data.tokens) {
+    if (!isValue(token)) {
+      continue;
+    }
+    if (token.type !== TokenType.NUMBER && token.type !== TokenType.UNQUOTED) {
+      continue;
+    }
+    const match = UNCERTAINTY_FORM.exec(token.text);
+    if (match === null) {
+      continue;
+    }
+    const inner = match[2];
+    const rest = match[3];
+    if (isWellFormedUncertaintySuffix(inner, rest)) {
+      continue;
+    }
+    data.errors.push(new ParserError(ParserErrorType.InvalidUncertainty, token));
   }
 }

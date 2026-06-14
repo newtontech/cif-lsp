@@ -1,0 +1,10 @@
+# Fixture for rule cif.value.invalid_uncertainty (issue #18).
+# Well-formed CIF numeric values, including valid standard-uncertainty
+# suffixes of the form <number>(<digits>). None of these should trigger the
+# invalid_uncertainty diagnostic.
+data_valid_uncertainty
+_cell_length_a 12.34(5)
+_cell_length_b 0.5e-3(2)
+_cell_length_c 42
+_cell_angle_alpha 9.81(2)
+_cell_angle_beta  .5(1)

@@ -1,0 +1,13 @@
+# Fixture for rule cif.value.invalid_uncertainty (issue #18).
+# CIF numeric values may carry a standard-uncertainty suffix of the form
+# <number>(<digits>), e.g. 12.34(5). The values below use malformed suffixes:
+# - non-numeric content inside the parentheses: 12.34(ab)
+# - decimal inside the parentheses:            12.34(5.6)
+# - empty parentheses:                         12.34()
+# - a stray trailing character:                1.2(3)x
+data_invalid_uncertainty
+_cell_length_a 12.34(ab)
+_cell_length_b 12.34(5.6)
+_cell_length_c 12.34()
+_cell_angle_alpha 1.2(3)x
+_cell_angle_beta  9.81(2)

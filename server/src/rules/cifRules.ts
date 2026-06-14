@@ -56,6 +56,18 @@ const arityMismatchMessage = (token: Token | undefined): string => {
   return `'${keyword}' value rows do not match the number of declared data names.`;
 };
 
+const INVALID_UNCERTAINTY_HINTS: string[] = [
+  "Write the standard-uncertainty suffix as <number>(<digits>), e.g. 12.34(5).",
+  "Remove stray characters or extra parenthesised groups after the numeric value.",
+];
+
+const invalidUncertaintyMessage = (token: Token | undefined): string => {
+  const value = token?.text ?? "";
+  return value
+    ? `Numeric value '${value}' has a malformed standard-uncertainty suffix.`
+    : "Numeric value has a malformed standard-uncertainty suffix.";
+};
+
 const rules: readonly CifRule[] = [
   {
     rule_id: "cif.syntax.duplicate_tag",
@@ -88,6 +100,17 @@ const rules: readonly CifRule[] = [
     source: "cif-lsp",
     message: arityMismatchMessage,
     fix_hints: ARITY_MISMATCH_HINTS,
+    manual_ref: "https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax",
+  },
+  {
+    rule_id: "cif.value.invalid_uncertainty",
+    error_type: ParserErrorType.InvalidUncertainty,
+    severity_label: "warning",
+    severity: DiagnosticSeverity.Warning,
+    category: "type/value",
+    source: "cif-lsp",
+    message: invalidUncertaintyMessage,
+    fix_hints: INVALID_UNCERTAINTY_HINTS,
     manual_ref: "https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax",
   },
 ];

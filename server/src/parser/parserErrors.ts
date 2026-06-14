@@ -18,6 +18,7 @@ export enum ParserErrorType {
   LineTooLong,
   NonAsciiCharacter,
   ValueTooLong,
+  InvalidUncertainty,
 }
 
 export enum ParserSeverity {

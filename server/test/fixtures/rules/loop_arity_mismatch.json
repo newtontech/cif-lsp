@@ -1,0 +1,22 @@
+{
+  "rule_id": "cif.loop.arity_mismatch",
+  "severity": "error",
+  "category": "syntax",
+  "source": "cif-lsp",
+  "blocking": true,
+  "manual_ref": "https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax",
+  "fix_hints": [
+    "Ensure every value row supplies exactly one value per declared _tag.",
+    "Add or remove values so the total value count is a multiple of the tag count."
+  ],
+  "message_template": "'<loop_>' value rows do not match the number of declared data names.",
+  "occurrences": [
+    {
+      "line_start": 4,
+      "char_start": 0,
+      "line_end": 4,
+      "char_end": 5,
+      "message": "'loop_' value rows do not match the number of declared data names."
+    }
+  ]
+}

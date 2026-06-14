@@ -1,0 +1,9 @@
+# Fixture for rule cif.loop.arity_mismatch (issue #17).
+# A well-formed loop: two declared data names and every value row supplies
+# exactly two values, so the arity is consistent throughout.
+data_arity_ok
+loop_
+_atom_site_label
+_atom_site_fract_x
+Si 0.0 0.0
+O 0.25 0.25

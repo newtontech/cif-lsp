@@ -38,3 +38,17 @@ rules:
       - Add at least one data name (_tag) on the line(s) following loop_.
       - Remove the stray loop_ keyword if no tabular data is intended.
     manual_ref: https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax
+  - rule_id: cif.loop.arity_mismatch
+    severity: error
+    category: syntax
+    source: cif-lsp
+    source_of_truth: IUCr CIF syntax guidance
+    description: >-
+      A loop_'s value rows do not match the number of declared data names. CIF
+      syntax requires the total value count inside a loop to be an exact
+      multiple of the number of _tag columns declared in its header.
+    message_template: "'<loop_>' value rows do not match the number of declared data names."
+    fix_hints:
+      - Ensure every value row supplies exactly one value per declared _tag.
+      - Add or remove values so the total value count is a multiple of the tag count.
+    manual_ref: https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax

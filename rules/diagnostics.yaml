@@ -52,3 +52,19 @@ rules:
       - Ensure every value row supplies exactly one value per declared _tag.
       - Add or remove values so the total value count is a multiple of the tag count.
     manual_ref: https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax
+  - rule_id: cif.value.invalid_uncertainty
+    severity: warning
+    category: type/value
+    source: cif-lsp
+    source_of_truth: IUCr CIF numeric value guidance
+    description: >-
+      A numeric value carries a malformed standard-uncertainty suffix. CIF
+      allows a numeric value to be written as <number>(<digits>), where the
+      parenthesised digits are the standard uncertainty in the last quoted
+      digits. Suffixes such as (ab), (5.6), (), (5)(6), or trailing characters
+      like 1.2(3)x are not valid uncertainty annotations.
+    message_template: "Numeric value '<value>' has a malformed standard-uncertainty suffix."
+    fix_hints:
+      - Write the standard-uncertainty suffix as <number>(<digits>), e.g. 12.34(5).
+      - Remove stray characters or extra parenthesised groups after the numeric value.
+    manual_ref: https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax

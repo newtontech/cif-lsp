@@ -1,0 +1,43 @@
+{
+  "rule_id": "cif.value.invalid_uncertainty",
+  "severity": "warning",
+  "category": "type/value",
+  "source": "cif-lsp",
+  "blocking": false,
+  "manual_ref": "https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax",
+  "fix_hints": [
+    "Write the standard-uncertainty suffix as <number>(<digits>), e.g. 12.34(5).",
+    "Remove stray characters or extra parenthesised groups after the numeric value."
+  ],
+  "message_template": "Numeric value '<value>' has a malformed standard-uncertainty suffix.",
+  "occurrences": [
+    {
+      "line_start": 8,
+      "char_start": 15,
+      "line_end": 8,
+      "char_end": 24,
+      "message": "Numeric value '12.34(ab)' has a malformed standard-uncertainty suffix."
+    },
+    {
+      "line_start": 9,
+      "char_start": 15,
+      "line_end": 9,
+      "char_end": 25,
+      "message": "Numeric value '12.34(5.6)' has a malformed standard-uncertainty suffix."
+    },
+    {
+      "line_start": 10,
+      "char_start": 15,
+      "line_end": 10,
+      "char_end": 22,
+      "message": "Numeric value '12.34()' has a malformed standard-uncertainty suffix."
+    },
+    {
+      "line_start": 11,
+      "char_start": 18,
+      "line_end": 11,
+      "char_end": 25,
+      "message": "Numeric value '1.2(3)x' has a malformed standard-uncertainty suffix."
+    }
+  ]
+}

@@ -3,22 +3,69 @@ import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
 import { Diagnostic, DiagnosticSeverity, Range } from "vscode-languageserver";
-import { cifKeys, cifKeysSet, hoverText, isValidValue } from "./handlers/cifDictionaryHandler";
+import {
+  cifKeys,
+  cifKeysSet,
+  hoverText,
+  isValidValue,
+} from "./handlers/cifDictionaryHandler";
 import { formatParserError } from "./parser/parserErrors";
 import { parser } from "./parser/parser";
 import { isValue, Token, TokenType } from "./parser/token";
-import { CheckPayload, RichDiagnostic, checkPayload, diagnosticToRich } from "./diagnosticEngineV1";
+import {
+  CheckPayload,
+  RichDiagnostic,
+  checkPayload,
+  diagnosticToRich,
+} from "./diagnosticEngineV1";
+import {
+  getRuleById,
+  getRuleForErrorType,
+  ruleManifest,
+} from "./rules/cifRules";
 
-const OPERATIONS = new Set(["check", "context", "complete", "hover", "symbols", "fix"]);
+const OPERATIONS = new Set([
+  "check",
+  "context",
+  "complete",
+  "hover",
+  "symbols",
+  "fix",
+  "explain",
+  "rules",
+]);
 
 function main(argv: string[]): number {
   const operation = argv[0];
   const input = argv[1];
   if (operation === "--help" || operation === "-h") {
-    console.log("usage: cif-lsp-tool <check|context|complete|hover|symbols|fix> <path> --format json [--line N --character N]");
+    console.log(
+      "usage: cif-lsp-tool <check|context|complete|hover|symbols|fix> <path> --format json [--line N --character N]",
+    );
+    console.log(
+      "       cif-lsp-tool explain <rule_id>          # describe a single diagnostic rule",
+    );
+    console.log(
+      "       cif-lsp-tool rules                      # list exported diagnostic rules",
+    );
     return 0;
   }
-  if (!operation || !input || !OPERATIONS.has(operation)) {
+  if (!operation || !OPERATIONS.has(operation)) {
+    console.error(
+      "usage: cif-lsp-tool <check|context|complete|hover|symbols|fix> <path> --format json [--line N --character N]",
+    );
+    return 2;
+  }
+  if (operation === "rules") {
+    console.log(JSON.stringify(rulesPayload(), null, 2));
+    return 0;
+  }
+  if (operation === "explain") {
+    const ruleId = input ?? "";
+    console.log(JSON.stringify(explainPayload(ruleId), null, 2));
+    return 0;
+  }
+  if (!input) {
     console.error(
       "usage: cif-lsp-tool <check|context|complete|hover|symbols|fix> <path> --format json [--line N --character N]",
     );
@@ -26,10 +73,16 @@ function main(argv: string[]): number {
   }
   const options = parseOptions(argv.slice(2));
   const fileType = path.extname(input).replace(/^\./, "") || "cif";
-  const diagnostics = collectDiagnostics(input).map((diagnostic) =>
-    diagnosticToRich(diagnostic, input, fileType),
+  const diagnostics = collectDiagnostics(input)
+    .map((diagnostic) => diagnosticToRich(diagnostic, input, fileType))
+    .map(attachRuleMetadata);
+  const payload = buildOperationPayload(
+    input,
+    operation,
+    diagnostics,
+    options.line,
+    options.character,
   );
-  const payload = buildOperationPayload(input, operation, diagnostics, options.line, options.character);
   console.log(JSON.stringify(payload, null, 2));
   return 0;
 }
@@ -41,7 +94,10 @@ function parseOptions(argv: string[]): { line: number; character: number } {
       options.line = Math.max(Number.parseInt(argv[index + 1], 10) || 0, 0);
       index += 1;
     } else if (argv[index] === "--character" && argv[index + 1]) {
-      options.character = Math.max(Number.parseInt(argv[index + 1], 10) || 0, 0);
+      options.character = Math.max(
+        Number.parseInt(argv[index + 1], 10) || 0,
+        0,
+      );
       index += 1;
     }
   }
@@ -56,7 +112,8 @@ function buildOperationPayload(
   character: number,
 ): CheckPayload & Record<string, unknown> {
   const uri = pathToFileURL(path.resolve(input)).toString();
-  const payload = checkPayload(uri, operation, diagnostics) as CheckPayload & Record<string, unknown>;
+  const payload = checkPayload(uri, operation, diagnostics) as CheckPayload &
+    Record<string, unknown>;
   const text = readText(input);
   const parsed = parser(text);
   const position = { line, character };
@@ -70,7 +127,11 @@ function buildOperationPayload(
       ...lineContext(text, line, character),
       path: input,
       file_type: path.extname(input).replace(/^\./, "") || "cif",
-      diagnostics_at_position: diagnosticsAtPosition(diagnostics, line, character),
+      diagnostics_at_position: diagnosticsAtPosition(
+        diagnostics,
+        line,
+        character,
+      ),
     };
     return payload;
   }
@@ -89,14 +150,25 @@ function buildOperationPayload(
         kind: 6,
         source: "document",
       }));
-    payload.items = dedupeItems([...dictionaryItems, ...tokenItems], "label").slice(0, 250);
-    markAvailability(payload, operation, Array.isArray(payload.items) && payload.items.length > 0);
+    payload.items = dedupeItems(
+      [...dictionaryItems, ...tokenItems],
+      "label",
+    ).slice(0, 250);
+    markAvailability(
+      payload,
+      operation,
+      Array.isArray(payload.items) && payload.items.length > 0,
+    );
     return payload;
   }
   if (operation === "hover") {
     const selected = tokenAt(parsed.tokens, line, character);
     let contents = selected ? hoverText(selected) : "";
-    if (!contents && selected?.type === TokenType.TAG && cifKeysSet().has(selected.text.toLowerCase())) {
+    if (
+      !contents &&
+      selected?.type === TokenType.TAG &&
+      cifKeysSet().has(selected.text.toLowerCase())
+    ) {
       contents = `${selected.text} is a recognized CIF data name.`;
     }
     if (!contents) {
@@ -105,20 +177,36 @@ function buildOperationPayload(
     }
     payload.context = lineContext(text, line, character);
     payload.contents = contents || null;
-    markAvailability(payload, operation, Boolean(contents), "No hover documentation found for this position.");
+    markAvailability(
+      payload,
+      operation,
+      Boolean(contents),
+      "No hover documentation found for this position.",
+    );
     return payload;
   }
   if (operation === "symbols") {
     payload.items = parsed.tokens
-      .filter((token) => token.type === TokenType.DATA || token.type === TokenType.SAVE || token.type === TokenType.LOOP || token.type === TokenType.TAG)
+      .filter(
+        (token) =>
+          token.type === TokenType.DATA ||
+          token.type === TokenType.SAVE ||
+          token.type === TokenType.LOOP ||
+          token.type === TokenType.TAG,
+      )
       .map(symbolFromToken);
-    markAvailability(payload, operation, Array.isArray(payload.items) && payload.items.length > 0);
+    markAvailability(
+      payload,
+      operation,
+      Array.isArray(payload.items) && payload.items.length > 0,
+    );
     return payload;
   }
   if (operation === "fix") {
-    payload.actions = (diagnosticsAtPosition(diagnostics, line, character).length
-      ? diagnosticsAtPosition(diagnostics, line, character)
-      : diagnostics
+    payload.actions = (
+      diagnosticsAtPosition(diagnostics, line, character).length
+        ? diagnosticsAtPosition(diagnostics, line, character)
+        : diagnostics
     ).map((diagnostic, index) => ({
       title: `Review ${diagnostic.code}: ${diagnostic.message}`,
       kind: "quickfix",
@@ -130,7 +218,12 @@ function buildOperationPayload(
       edit: null,
       data: { index, source: diagnostic.source },
     }));
-    markAvailability(payload, operation, Array.isArray(payload.actions) && payload.actions.length > 0, "No safe quick-fix hints are available for current diagnostics.");
+    markAvailability(
+      payload,
+      operation,
+      Array.isArray(payload.actions) && payload.actions.length > 0,
+      "No safe quick-fix hints are available for current diagnostics.",
+    );
     return payload;
   }
   return payload;
@@ -152,17 +245,35 @@ function collectDiagnostics(input: string): Diagnostic[] {
     ];
   }
   const parsed = parser(text);
-  const diagnostics: Diagnostic[] = parsed.errors.map((parserError) => ({
-    severity: DiagnosticSeverity.Warning,
-    range: parserError.token?.range ?? fallbackRange(),
-    message: formatParserError(parserError) + (parserError.token?.text ? ` ${parserError.token.text}` : ""),
-    source: "cif-lsp",
-    code: "CIF-PARSE",
-  }));
+  const diagnostics: Diagnostic[] = parsed.errors.map((parserError) => {
+    const rule = getRuleForErrorType(parserError.type);
+    if (rule) {
+      return {
+        severity: rule.severity,
+        range: parserError.token?.range ?? fallbackRange(),
+        message: rule.message(parserError.token),
+        source: rule.source,
+        code: rule.rule_id,
+      };
+    }
+    return {
+      severity: DiagnosticSeverity.Warning,
+      range: parserError.token?.range ?? fallbackRange(),
+      message:
+        formatParserError(parserError) +
+        (parserError.token?.text ? ` ${parserError.token.text}` : ""),
+      source: "cif-lsp",
+      code: "CIF-PARSE",
+    };
+  });
 
   const keys = cifKeysSet();
   for (const token of parsed.tokens) {
-    if (token.type === TokenType.TAG && token.text && !keys.has(token.text.toLowerCase())) {
+    if (
+      token.type === TokenType.TAG &&
+      token.text &&
+      !keys.has(token.text.toLowerCase())
+    ) {
       diagnostics.push({
         severity: DiagnosticSeverity.Warning,
         range: token.range,
@@ -210,7 +321,10 @@ function lineContext(text: string, line: number, character: number) {
   };
 }
 
-function wordAt(lineText: string, character: number): { text: string; start: number; end: number } {
+function wordAt(
+  lineText: string,
+  character: number,
+): { text: string; start: number; end: number } {
   const wordPattern = /[A-Za-z_][A-Za-z0-9_.-]*/g;
   for (const match of lineText.matchAll(wordPattern)) {
     const start = match.index ?? 0;
@@ -222,7 +336,11 @@ function wordAt(lineText: string, character: number): { text: string; start: num
   return { text: "", start: character, end: character };
 }
 
-function tokenAt(tokens: Token[], line: number, character: number): Token | undefined {
+function tokenAt(
+  tokens: Token[],
+  line: number,
+  character: number,
+): Token | undefined {
   return tokens.find((token) => {
     const { start, end } = token.range;
     return (
@@ -234,7 +352,11 @@ function tokenAt(tokens: Token[], line: number, character: number): Token | unde
   });
 }
 
-function diagnosticsAtPosition(diagnostics: RichDiagnostic[], line: number, character: number): RichDiagnostic[] {
+function diagnosticsAtPosition(
+  diagnostics: RichDiagnostic[],
+  line: number,
+  character: number,
+): RichDiagnostic[] {
   return diagnostics.filter((diagnostic) => {
     const { start, end } = diagnostic.range;
     return (
@@ -255,7 +377,10 @@ function symbolFromToken(token: Token) {
   };
 }
 
-function dedupeItems<T extends Record<string, unknown>>(items: T[], key: keyof T): T[] {
+function dedupeItems<T extends Record<string, unknown>>(
+  items: T[],
+  key: keyof T,
+): T[] {
   const seen = new Set<unknown>();
   const result: T[] = [];
   for (const item of items) {
@@ -285,10 +410,128 @@ function markAvailability(
   }
 }
 
+interface RuleManifestPayload {
+  uri: null;
+  operation: "rules";
+  ok: boolean;
+  version: "1.0";
+  software: "cif";
+  diagnostic_engine: "1.0";
+  manifest_source: "rules/diagnostics.yaml";
+  rules: ReturnType<typeof ruleManifest>;
+  summary: {
+    count: number;
+    errors: number;
+    warnings: number;
+    note?: string;
+  };
+  capabilities: {
+    operations: string[];
+    operation: "rules";
+    status: "available" | "unavailable";
+    source: string;
+    reason?: string;
+  };
+}
+
+function rulesPayload(): RuleManifestPayload {
+  const rules = ruleManifest();
+  return {
+    uri: null,
+    operation: "rules",
+    ok: true,
+    version: "1.0",
+    software: "cif",
+    diagnostic_engine: "1.0",
+    manifest_source: "rules/diagnostics.yaml",
+    rules,
+    summary: {
+      count: rules.length,
+      errors: rules.filter((rule) => rule.severity === "error").length,
+      warnings: rules.filter((rule) => rule.severity === "warning").length,
+    },
+    capabilities: {
+      operations: ["check", "context", "complete", "hover", "symbols", "fix"],
+      operation: "rules",
+      status: rules.length > 0 ? "available" : "unavailable",
+      source: "cifLspTool",
+    },
+  };
+}
+
+interface ExplainPayload {
+  uri: null;
+  operation: "explain";
+  ok: boolean;
+  version: "1.0";
+  software: "cif";
+  diagnostic_engine: "1.0";
+  rule: ReturnType<typeof ruleManifest>[number] | null;
+  requested_rule_id: string;
+  summary: {
+    found: boolean;
+    note?: string;
+  };
+  capabilities: {
+    operations: string[];
+    operation: "explain";
+    status: "available" | "unavailable";
+    source: string;
+    reason?: string;
+  };
+}
+
+function explainPayload(ruleId: string): ExplainPayload {
+  const rule = getRuleById(ruleId);
+  const manifest = rule
+    ? (ruleManifest().find((entry) => entry.rule_id === ruleId) ?? null)
+    : null;
+  const found = manifest !== null;
+  const note = found
+    ? undefined
+    : `No rule registered with rule_id '${ruleId}'.`;
+  return {
+    uri: null,
+    operation: "explain",
+    ok: found,
+    version: "1.0",
+    software: "cif",
+    diagnostic_engine: "1.0",
+    rule: manifest,
+    requested_rule_id: ruleId,
+    summary: { found, ...(note ? { note } : {}) },
+    capabilities: {
+      operations: ["check", "context", "complete", "hover", "symbols", "fix"],
+      operation: "explain",
+      status: found ? "available" : "unavailable",
+      source: "cifLspTool",
+      ...(found ? {} : { reason: note ?? "Rule not found." }),
+    },
+  };
+}
+
 function fallbackRange(): Range {
   return {
     start: { line: 0, character: 0 },
     end: { line: 0, character: 1 },
+  };
+}
+
+/**
+ * Fold rule-managed metadata (fix hints, manual reference) onto rich
+ * diagnostics whose code is a registered rule_id. Returns a new object so the
+ * caller's diagnostics are never mutated in place.
+ */
+function attachRuleMetadata(diagnostic: RichDiagnostic): RichDiagnostic {
+  const rule = getRuleById(diagnostic.code);
+  if (!rule) {
+    return diagnostic;
+  }
+  return {
+    ...diagnostic,
+    category: rule.category,
+    fix_hints: [...rule.fix_hints],
+    manual_ref: rule.manual_ref,
   };
 }
 

@@ -15,6 +15,14 @@ if has_npm_script compile; then
   npm run compile
 fi
 
+# Run server unit tests (mocha) when compiled output exists.
+# Invoking bin/mocha.js via node avoids the mocha CLI shim, which loads a
+# yargs version that is incompatible with newer Node ESM handling.
+if [ -f ./node_modules/mocha/bin/mocha.js ] && ls server/out/test/*.test.js >/dev/null 2>&1; then
+  node ./node_modules/mocha/bin/mocha.js --recursive "server/out/test/*.js"
+  ran=1
+fi
+
 if has_npm_script test; then
   npm test
   ran=1

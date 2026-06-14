@@ -1,0 +1,22 @@
+{
+  "rule_id": "cif.atom_site.symmetry_mismatch",
+  "severity": "warning",
+  "category": "semantic consistency",
+  "source": "cif-lsp",
+  "blocking": false,
+  "manual_ref": "https://www.iucr.org/resources/cif/dictionaries",
+  "fix_hints": [
+    "Add a space-group header such as _symmetry_space_group_name_H-M 'P 1'.",
+    "Alternatively, list symmetry equivalent positions with a loop_ over _symmetry_equiv_pos_as_xyz."
+  ],
+  "message_template": "Atom-site coordinates ('<tag>') are declared without symmetry information; add _symmetry_space_group_name_H-M or _symmetry_equiv_pos_as_xyz.",
+  "occurrences": [
+    {
+      "line_start": 7,
+      "char_start": 0,
+      "line_end": 7,
+      "char_end": 18,
+      "message": "Atom-site coordinates ('_atom_site_fract_x') are declared without symmetry information; add _symmetry_space_group_name_H-M or _symmetry_equiv_pos_as_xyz."
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+# Fixture for rule cif.syntax.malformed_data_block (issue #14).
+# The `data_` keyword is written without a block name. CIF syntax requires
+# every block header to be `data_<block-name>` with a non-empty name.
+data_

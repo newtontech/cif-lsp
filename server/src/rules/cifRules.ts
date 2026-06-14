@@ -68,6 +68,37 @@ const invalidUncertaintyMessage = (token: Token | undefined): string => {
     : "Numeric value has a malformed standard-uncertainty suffix.";
 };
 
+const MALFORMED_DATA_BLOCK_HINTS: string[] = [
+  "Provide a non-empty block name after data_, e.g. data_my_block.",
+  "Avoid whitespace between data_ and the block name; the name must immediately follow the keyword.",
+];
+
+const malformedDataBlockMessage = (token: Token | undefined): string => {
+  const keyword = token?.text ?? "data_";
+  return `'${keyword}' is missing its data-block name. CIF syntax requires data_<block-name> with a non-empty block name.`;
+};
+
+const MISSING_CELL_PARAMETERS_HINTS: string[] = [
+  "Declare all six unit-cell parameters: _cell_length_a/b/c and _cell_angle_alpha/beta/gamma.",
+  "If the cell is intentionally under-specified, document the missing parameters explicitly in a comment.",
+];
+
+const missingCellParametersMessage = (token: Token | undefined): string => {
+  const blockName = token?.text ?? "";
+  const suffix = blockName ? ` in data block '${blockName}'` : "";
+  return `Data block declares some but not all unit-cell parameters${suffix}. Provide all six _cell_length_* and _cell_angle_* tags.`;
+};
+
+const ATOM_SITE_SYMMETRY_MISMATCH_HINTS: string[] = [
+  "Add a space-group header such as _symmetry_space_group_name_H-M 'P 1'.",
+  "Alternatively, list symmetry equivalent positions with a loop_ over _symmetry_equiv_pos_as_xyz.",
+];
+
+const atomSiteSymmetryMismatchMessage = (token: Token | undefined): string => {
+  const tagName = token?.text ?? "_atom_site_fract_x";
+  return `Atom-site coordinates ('${tagName}') are declared without symmetry information; add _symmetry_space_group_name_H-M or _symmetry_equiv_pos_as_xyz.`;
+};
+
 const rules: readonly CifRule[] = [
   {
     rule_id: "cif.syntax.duplicate_tag",
@@ -112,6 +143,39 @@ const rules: readonly CifRule[] = [
     message: invalidUncertaintyMessage,
     fix_hints: INVALID_UNCERTAINTY_HINTS,
     manual_ref: "https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax",
+  },
+  {
+    rule_id: "cif.syntax.malformed_data_block",
+    error_type: ParserErrorType.MalformedDataBlock,
+    severity_label: "error",
+    severity: DiagnosticSeverity.Error,
+    category: "syntax",
+    source: "cif-lsp",
+    message: malformedDataBlockMessage,
+    fix_hints: MALFORMED_DATA_BLOCK_HINTS,
+    manual_ref: "https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax",
+  },
+  {
+    rule_id: "cif.cell.missing_parameters",
+    error_type: ParserErrorType.MissingCellParameters,
+    severity_label: "warning",
+    severity: DiagnosticSeverity.Warning,
+    category: "semantic consistency",
+    source: "cif-lsp",
+    message: missingCellParametersMessage,
+    fix_hints: MISSING_CELL_PARAMETERS_HINTS,
+    manual_ref: "https://www.iucr.org/resources/cif/dictionaries",
+  },
+  {
+    rule_id: "cif.atom_site.symmetry_mismatch",
+    error_type: ParserErrorType.AtomSiteSymmetryMismatch,
+    severity_label: "warning",
+    severity: DiagnosticSeverity.Warning,
+    category: "semantic consistency",
+    source: "cif-lsp",
+    message: atomSiteSymmetryMismatchMessage,
+    fix_hints: ATOM_SITE_SYMMETRY_MISMATCH_HINTS,
+    manual_ref: "https://www.iucr.org/resources/cif/dictionaries",
   },
 ];
 

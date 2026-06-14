@@ -68,3 +68,48 @@ rules:
       - Write the standard-uncertainty suffix as <number>(<digits>), e.g. 12.34(5).
       - Remove stray characters or extra parenthesised groups after the numeric value.
     manual_ref: https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax
+  - rule_id: cif.syntax.malformed_data_block
+    severity: error
+    category: syntax
+    source: cif-lsp
+    source_of_truth: IUCr CIF syntax guidance
+    description: >-
+      A `data_` keyword is written without a block name. CIF syntax requires
+      every data block to start with `data_<block-name>` where `<block-name>`
+      is non-empty. A standalone `data_` token is malformed because the block
+      name is missing; downstream tools cannot anchor the block.
+    message_template: "'<data_>' is missing its data-block name. CIF syntax requires data_<block-name> with a non-empty block name."
+    fix_hints:
+      - Provide a non-empty block name after data_, e.g. data_my_block.
+      - Avoid whitespace between data_ and the block name; the name must immediately follow the keyword.
+    manual_ref: https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax
+  - rule_id: cif.cell.missing_parameters
+    severity: warning
+    category: semantic consistency
+    source: cif-lsp
+    source_of_truth: CIF dictionary requirements
+    description: >-
+      A data block declares some but not all six canonical unit-cell
+      parameters. Crystallographic runners require _cell.length_a/b/c and
+      _cell.angle_alpha/beta/gamma to build a complete unit cell; a partial
+      declaration leaves the cell under-specified.
+    message_template: "Data block declares some but not all unit-cell parameters in data block '<block>'. Provide all six _cell_length_* and _cell_angle_* tags."
+    fix_hints:
+      - Declare all six unit-cell parameters: _cell_length_a/b/c and _cell_angle_alpha/beta/gamma.
+      - If the cell is intentionally under-specified, document the missing parameters explicitly in a comment.
+    manual_ref: https://www.iucr.org/resources/cif/dictionaries
+  - rule_id: cif.atom_site.symmetry_mismatch
+    severity: warning
+    category: semantic consistency
+    source: cif-lsp
+    source_of_truth: CIF dictionary structural semantics
+    description: >-
+      Per-atom coordinates are declared without symmetry information. A block
+      that lists `_atom_site_*` fractional or Cartesian coordinates but no
+      `_symmetry_space_group_name_*`, `_symmetry_int_tables_number`, or
+      `_symmetry_equiv_pos_as_xyz` cannot be interpreted unambiguously.
+    message_template: "Atom-site coordinates ('<tag>') are declared without symmetry information; add _symmetry_space_group_name_H-M or _symmetry_equiv_pos_as_xyz."
+    fix_hints:
+      - Add a space-group header such as _symmetry_space_group_name_H-M 'P 1'.
+      - Alternatively, list symmetry equivalent positions with a loop_ over _symmetry_equiv_pos_as_xyz.
+    manual_ref: https://www.iucr.org/resources/cif/dictionaries

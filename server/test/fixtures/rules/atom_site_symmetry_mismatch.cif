@@ -1,0 +1,12 @@
+# Fixture for rule cif.atom_site.symmetry_mismatch (issue #20).
+# Declares per-atom fractional coordinates but no symmetry information: the
+# block lacks both _symmetry_space_group_name_H-M and _symmetry_equiv_pos_as_xyz.
+data_atoms_without_symmetry
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Na1 Na 0.0 0.0 0.0
+Cl1 Cl 0.5 0.0 0.0

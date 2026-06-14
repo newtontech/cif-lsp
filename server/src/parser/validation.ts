@@ -5,6 +5,9 @@ export function validateParsedData(data: ParserResult): void {
   checkDuplicateDataBlocks(data);
   checkDuplicateTagsInBlocks(data);
   checkInvalidUncertainty(data);
+  checkMalformedDataBlocks(data);
+  checkMissingCellParameters(data);
+  checkAtomSiteSymmetryMismatch(data);
 }
 
 function checkDuplicateDataBlocks(data: ParserResult): void {
@@ -186,5 +189,247 @@ function checkInvalidUncertainty(data: ParserResult): void {
       continue;
     }
     data.errors.push(new ParserError(ParserErrorType.InvalidUncertainty, token));
+  }
+}
+
+/**
+ * Matches a `data_` keyword written without a block name (case-insensitive).
+ *
+ * The CIF lexer recognises a data-block header as `data_<name>` where `<name>`
+ * is non-empty. A standalone `data_` token therefore ends up classified as
+ * UNQUOTED text. The parser's {@link dataBlock} step emits
+ * `MalformedDataBlock` for these tokens directly, so this validator only acts
+ * as a defensive net for callers that bypass the parser (e.g. future lexer
+ * re-entry paths) without duplicating the diagnostic for the common path.
+ */
+const MALFORMED_DATA_BLOCK = /^data_$/i;
+
+/**
+ * Flags `data_` keywords written without a block name.
+ *
+ * Defensive check: the parser's dataBlock step already emits
+ * `MalformedDataBlock` for UNQUOTED `data_` tokens, so this scans for any
+ * such token that has not already been flagged to keep the diagnostic count
+ * stable when callers reach validation through a different path.
+ */
+function checkMalformedDataBlocks(data: ParserResult): void {
+  const alreadyReported = new Set<Token>();
+  for (const error of data.errors) {
+    if (
+      error.type === ParserErrorType.MalformedDataBlock &&
+      error.token !== undefined
+    ) {
+      alreadyReported.add(error.token);
+    }
+  }
+  for (const token of data.tokens) {
+    if (token.type !== TokenType.UNQUOTED) {
+      continue;
+    }
+    if (alreadyReported.has(token)) {
+      continue;
+    }
+    if (MALFORMED_DATA_BLOCK.test(token.text)) {
+      data.errors.push(
+        new ParserError(ParserErrorType.MalformedDataBlock, token),
+      );
+      alreadyReported.add(token);
+    }
+  }
+}
+
+/**
+ * The six canonical unit-cell parameters required to fully describe a unit
+ * cell. A data block that declares some but not all of them is incomplete.
+ */
+const CELL_PARAMETER_TAGS: readonly string[] = [
+  "_cell.length_a",
+  "_cell.length_b",
+  "_cell.length_c",
+  "_cell.angle_alpha",
+  "_cell.angle_beta",
+  "_cell.angle_gamma",
+];
+
+/**
+ * Maps each canonical cell parameter to the set of CIF data names that
+ * downstream tools treat as synonymous. CIF dictionaries use underscores in
+ * both `_cell.length_a` (ddl-mmtf) and `_cell_length_a` (coreCIF) shapes; we
+ * accept both so the rule is robust against either dictionary convention.
+ */
+const CELL_PARAMETER_ALIASES: ReadonlyMap<string, readonly string[]> = new Map(
+  CELL_PARAMETER_TAGS.map((canonical) => {
+    const alt = "_" + canonical.slice(1).replace(".", "_");
+    return [canonical, [canonical.toLowerCase(), alt.toLowerCase()]];
+  }),
+);
+
+interface CellParameterBlock {
+  blockToken: Token;
+  present: Set<string>;
+}
+
+/**
+ * Aggregates cell-parameter tag declarations per data block.
+ *
+ * Returns blocks that declare at least one (but not all six) cell parameter.
+ * Blocks without any cell parameter are ignored because they may describe
+ * non-crystallographic data; blocks with all six are intentionally complete.
+ */
+function collectIncompleteCellBlocks(data: ParserResult): CellParameterBlock[] {
+  const blocks = new Map<Token, Set<string>>();
+  for (const token of data.tokens) {
+    if (token.type !== TokenType.TAG) {
+      continue;
+    }
+    const block = token.save ?? token.block;
+    if (!block) {
+      continue;
+    }
+    const lower = token.text.toLowerCase();
+    for (const [canonical, aliases] of CELL_PARAMETER_ALIASES) {
+      if (aliases.includes(lower)) {
+        if (!blocks.has(block)) {
+          blocks.set(block, new Set());
+        }
+        blocks.get(block)!.add(canonical);
+        break;
+      }
+    }
+  }
+  const incomplete: CellParameterBlock[] = [];
+  for (const [blockToken, present] of blocks) {
+    if (present.size > 0 && present.size < CELL_PARAMETER_TAGS.length) {
+      incomplete.push({ blockToken, present });
+    }
+  }
+  return incomplete;
+}
+
+/**
+ * Flags data blocks that declare some but not all six unit-cell parameters.
+ *
+ * Crystallographic runners require all of `_cell.length_a/b/c` and
+ * `_cell.angle_alpha/beta/gamma` to build a unit cell. A partial declaration
+ * (for example, only the three lengths) leaves the cell under-specified, so
+ * the rule warns once per offending block and names the missing tags in the
+ * message. The diagnostic range covers the offending `data_<name>` token so
+ * agents and editors can link the warning back to the block.
+ */
+function checkMissingCellParameters(data: ParserResult): void {
+  const incomplete = collectIncompleteCellBlocks(data);
+  for (const { blockToken, present } of incomplete) {
+    const missing = CELL_PARAMETER_TAGS.filter(
+      (canonical) => !present.has(canonical),
+    );
+    if (missing.length === 0) {
+      continue;
+    }
+    const display = missing
+      .map((tag) => "_" + tag.slice(1).replace(".", "_"))
+      .join(", ");
+    data.errors.push(
+      new ParserError(
+        ParserErrorType.MissingCellParameters,
+        blockToken,
+        `Missing ${missing.length} unit-cell parameter(s): ${display}`,
+      ),
+    );
+  }
+}
+
+/**
+ * Tags that mark an `_atom_site` loop. Their presence means the block
+ * declares per-atom coordinate data that needs symmetry information to be
+ * interpretable.
+ */
+const ATOM_SITE_COORD_TAGS: readonly string[] = [
+  "_atom_site.fract_x",
+  "_atom_site.fract_y",
+  "_atom_site.fract_z",
+  "_atom_site.cartn_x",
+  "_atom_site.cartn_y",
+  "_atom_site.cartn_z",
+].flatMap((canonical) => [
+  canonical.toLowerCase(),
+  "_" + canonical.slice(1).replace(".", "_"),
+]);
+
+/**
+ * Tags that satisfy the symmetry-information requirement for an `_atom_site`
+ * loop. Either an explicit space-group name or a list of equivalent positions
+ * is sufficient.
+ */
+const SYMMETRY_INFO_TAGS: readonly string[] = [
+  "_symmetry.space_group_name_h-m",
+  "_symmetry.space_group_name_hall",
+  "_symmetry.int_tables_number",
+  "_symmetry_equiv.pos_as_xyz",
+].flatMap((canonical) => [
+  canonical.toLowerCase(),
+  "_" + canonical.slice(1).replace(".", "_"),
+]);
+
+interface AtomSiteSymmetryBlock {
+  blockToken: Token;
+  atomSiteToken: Token;
+}
+
+/**
+ * Locates data blocks that declare atom-site coordinates but no symmetry
+ * information. Each occurrence yields the block token and the first
+ * `_atom_site_*` coordinate tag seen, so the diagnostic range can point at
+ * the relevant loop body instead of an unrelated line.
+ */
+function collectAtomSiteWithoutSymmetry(
+  data: ParserResult,
+): AtomSiteSymmetryBlock[] {
+  const atomSiteBlocks = new Map<Token, Token>();
+  const symmetryBlocks = new Set<Token>();
+  for (const token of data.tokens) {
+    if (token.type !== TokenType.TAG) {
+      continue;
+    }
+    const block = token.save ?? token.block;
+    if (!block) {
+      continue;
+    }
+    const lower = token.text.toLowerCase();
+    if (ATOM_SITE_COORD_TAGS.includes(lower) && !atomSiteBlocks.has(block)) {
+      atomSiteBlocks.set(block, token);
+    }
+    if (SYMMETRY_INFO_TAGS.includes(lower)) {
+      symmetryBlocks.add(block);
+    }
+  }
+  const result: AtomSiteSymmetryBlock[] = [];
+  for (const [blockToken, atomSiteToken] of atomSiteBlocks) {
+    if (!symmetryBlocks.has(blockToken)) {
+      result.push({ blockToken, atomSiteToken });
+    }
+  }
+  return result;
+}
+
+/**
+ * Flags atom-site loops declared without any symmetry information.
+ *
+ * Per-atom fractional/Cartesian coordinates can only be interpreted together
+ * with the symmetry operations of the space group. A data block that lists
+ * `_atom_site_*` coordinates but none of `_symmetry_space_group_name_*`,
+ * `_symmetry_int_tables_number`, or `_symmetry_equiv_pos_as_xyz` is therefore
+ * inconsistent. The warning points at the first atom-site coordinate tag so
+ * the user can add the missing symmetry section nearby.
+ */
+function checkAtomSiteSymmetryMismatch(data: ParserResult): void {
+  const blocks = collectAtomSiteWithoutSymmetry(data);
+  for (const { atomSiteToken } of blocks) {
+    data.errors.push(
+      new ParserError(
+        ParserErrorType.AtomSiteSymmetryMismatch,
+        atomSiteToken,
+        "Atom-site coordinates are declared without any symmetry information; add _symmetry_space_group_name_H-M or _symmetry_equiv_pos_as_xyz.",
+      ),
+    );
   }
 }

@@ -1,0 +1,22 @@
+{
+  "rule_id": "cif.cell.missing_parameters",
+  "severity": "warning",
+  "category": "semantic consistency",
+  "source": "cif-lsp",
+  "blocking": false,
+  "manual_ref": "https://www.iucr.org/resources/cif/dictionaries",
+  "fix_hints": [
+    "Declare all six unit-cell parameters: _cell_length_a/b/c and _cell_angle_alpha/beta/gamma.",
+    "If the cell is intentionally under-specified, document the missing parameters explicitly in a comment."
+  ],
+  "message_template": "Data block declares some but not all unit-cell parameters in data block '<block>'. Provide all six _cell_length_* and _cell_angle_* tags.",
+  "occurrences": [
+    {
+      "line_start": 4,
+      "char_start": 0,
+      "line_end": 4,
+      "char_end": 17,
+      "message": "Data block declares some but not all unit-cell parameters in data block 'data_partial_cell'. Provide all six _cell_length_* and _cell_angle_* tags."
+    }
+  ]
+}

@@ -19,6 +19,9 @@ export enum ParserErrorType {
   NonAsciiCharacter,
   ValueTooLong,
   InvalidUncertainty,
+  MalformedDataBlock,
+  MissingCellParameters,
+  AtomSiteSymmetryMismatch,
 }
 
 export enum ParserSeverity {

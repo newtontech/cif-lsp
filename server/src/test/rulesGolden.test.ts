@@ -538,3 +538,363 @@ describe("cif.value.invalid_uncertainty rule (issue #18)", function () {
     assert.ok(entry, "rules export and manifest must agree");
   });
 });
+
+const MALFORMED_DATA_BLOCK_RULE_ID = "cif.syntax.malformed_data_block";
+const MALFORMED_DATA_BLOCK_INVALID = path.join(
+  FIXTURE_DIR,
+  "malformed_data_block.cif",
+);
+const MALFORMED_DATA_BLOCK_VALID = path.join(
+  FIXTURE_DIR,
+  "malformed_data_block_valid.cif",
+);
+const MALFORMED_DATA_BLOCK_GOLDEN = path.join(
+  FIXTURE_DIR,
+  "malformed_data_block.json",
+);
+
+describe("cif.syntax.malformed_data_block rule (issue #14)", function () {
+  this.timeout(20000);
+
+  it("emits exactly the rule's diagnostics on the invalid fixture", function () {
+    const payload = runTool([
+      "check",
+      MALFORMED_DATA_BLOCK_INVALID,
+      "--format",
+      "json",
+    ]) as CheckPayload;
+    const ruleDiagnostics = payload.diagnostics.filter(
+      (diagnostic) => diagnostic.code === MALFORMED_DATA_BLOCK_RULE_ID,
+    );
+
+    const golden = JSON.parse(
+      fs.readFileSync(MALFORMED_DATA_BLOCK_GOLDEN, "utf8"),
+    ) as GoldenFile;
+
+    assert.strictEqual(
+      ruleDiagnostics.length,
+      golden.occurrences.length,
+      "expected the golden number of malformed_data_block diagnostics",
+    );
+
+    ruleDiagnostics.forEach((diagnostic) => {
+      assert.strictEqual(diagnostic.severity, golden.severity);
+      assert.strictEqual(diagnostic.category, golden.category);
+      assert.strictEqual(diagnostic.source, golden.source);
+      assert.strictEqual(diagnostic.blocking, golden.blocking);
+      assert.deepStrictEqual(diagnostic.fix_hints, golden.fix_hints);
+      assert.strictEqual(diagnostic.manual_ref, golden.manual_ref);
+    });
+
+    ruleDiagnostics.forEach((diagnostic, index) => {
+      const expected = golden.occurrences[index];
+      const { range } = diagnostic;
+      assert.deepStrictEqual(range.start, {
+        line: expected.line_start,
+        character: expected.char_start,
+      });
+      assert.deepStrictEqual(range.end, {
+        line: expected.line_end,
+        character: expected.char_end,
+      });
+      assert.strictEqual(diagnostic.message, expected.message);
+    });
+  });
+
+  it("does not fire on a fixture with a well-formed data-block header", function () {
+    const payload = runTool([
+      "check",
+      MALFORMED_DATA_BLOCK_VALID,
+      "--format",
+      "json",
+    ]) as CheckPayload;
+    const ruleDiagnostics = payload.diagnostics.filter(
+      (diagnostic) => diagnostic.code === MALFORMED_DATA_BLOCK_RULE_ID,
+    );
+    assert.deepStrictEqual(ruleDiagnostics, []);
+  });
+
+  it("exposes the rule via the explain operation", function () {
+    const payload = runTool([
+      "explain",
+      MALFORMED_DATA_BLOCK_RULE_ID,
+      "--format",
+      "json",
+    ]) as ExplainPayload;
+    assert.strictEqual(payload.operation, "explain");
+    assert.strictEqual(payload.ok, true);
+    assert.ok(payload.rule, "explain payload must include the rule descriptor");
+    assert.strictEqual(payload.rule!.rule_id, MALFORMED_DATA_BLOCK_RULE_ID);
+    assert.strictEqual(payload.rule!.severity, "error");
+    assert.strictEqual(payload.rule!.category, "syntax");
+    assert.ok(payload.rule!.fix_hints.length >= 1);
+    assert.ok(payload.rule!.manual_ref);
+  });
+
+  it("lists the rule via the rules operation", function () {
+    const payload = runTool(["rules", "--format", "json"]) as RulesPayload;
+    assert.strictEqual(payload.operation, "rules");
+    const entry = payload.rules.find(
+      (rule) => rule.rule_id === MALFORMED_DATA_BLOCK_RULE_ID,
+    );
+    assert.ok(
+      entry,
+      "rules export must include cif.syntax.malformed_data_block",
+    );
+    assert.strictEqual(entry!.severity, "error");
+    assert.strictEqual(entry!.category, "syntax");
+  });
+
+  it("keeps the rule manifest in sync with the TypeScript registry", function () {
+    const payload = runTool(["rules", "--format", "json"]) as RulesPayload;
+    const entry = payload.rules.find(
+      (rule) => rule.rule_id === MALFORMED_DATA_BLOCK_RULE_ID,
+    );
+    const manifestPath = path.join(REPO_ROOT, "rules", "diagnostics.yaml");
+    const manifest = fs.readFileSync(manifestPath, "utf8");
+    assert.ok(
+      manifest.includes(`rule_id: ${MALFORMED_DATA_BLOCK_RULE_ID}`),
+      "manifest must declare the rule",
+    );
+    assert.ok(entry, "rules export and manifest must agree");
+  });
+});
+
+const MISSING_CELL_PARAMETERS_RULE_ID = "cif.cell.missing_parameters";
+const MISSING_CELL_PARAMETERS_INVALID = path.join(
+  FIXTURE_DIR,
+  "missing_cell_parameters.cif",
+);
+const MISSING_CELL_PARAMETERS_VALID = path.join(
+  FIXTURE_DIR,
+  "missing_cell_parameters_valid.cif",
+);
+const MISSING_CELL_PARAMETERS_GOLDEN = path.join(
+  FIXTURE_DIR,
+  "missing_cell_parameters.json",
+);
+
+describe("cif.cell.missing_parameters rule (issue #19)", function () {
+  this.timeout(20000);
+
+  it("emits exactly the rule's diagnostics on the invalid fixture", function () {
+    const payload = runTool([
+      "check",
+      MISSING_CELL_PARAMETERS_INVALID,
+      "--format",
+      "json",
+    ]) as CheckPayload;
+    const ruleDiagnostics = payload.diagnostics.filter(
+      (diagnostic) => diagnostic.code === MISSING_CELL_PARAMETERS_RULE_ID,
+    );
+
+    const golden = JSON.parse(
+      fs.readFileSync(MISSING_CELL_PARAMETERS_GOLDEN, "utf8"),
+    ) as GoldenFile;
+
+    assert.strictEqual(
+      ruleDiagnostics.length,
+      golden.occurrences.length,
+      "expected the golden number of missing_parameters diagnostics",
+    );
+
+    ruleDiagnostics.forEach((diagnostic) => {
+      assert.strictEqual(diagnostic.severity, golden.severity);
+      assert.strictEqual(diagnostic.category, golden.category);
+      assert.strictEqual(diagnostic.source, golden.source);
+      assert.strictEqual(diagnostic.blocking, golden.blocking);
+      assert.deepStrictEqual(diagnostic.fix_hints, golden.fix_hints);
+      assert.strictEqual(diagnostic.manual_ref, golden.manual_ref);
+    });
+
+    ruleDiagnostics.forEach((diagnostic, index) => {
+      const expected = golden.occurrences[index];
+      const { range } = diagnostic;
+      assert.deepStrictEqual(range.start, {
+        line: expected.line_start,
+        character: expected.char_start,
+      });
+      assert.deepStrictEqual(range.end, {
+        line: expected.line_end,
+        character: expected.char_end,
+      });
+      assert.strictEqual(diagnostic.message, expected.message);
+    });
+  });
+
+  it("does not fire on a fixture declaring all six cell parameters", function () {
+    const payload = runTool([
+      "check",
+      MISSING_CELL_PARAMETERS_VALID,
+      "--format",
+      "json",
+    ]) as CheckPayload;
+    const ruleDiagnostics = payload.diagnostics.filter(
+      (diagnostic) => diagnostic.code === MISSING_CELL_PARAMETERS_RULE_ID,
+    );
+    assert.deepStrictEqual(ruleDiagnostics, []);
+  });
+
+  it("exposes the rule via the explain operation", function () {
+    const payload = runTool([
+      "explain",
+      MISSING_CELL_PARAMETERS_RULE_ID,
+      "--format",
+      "json",
+    ]) as ExplainPayload;
+    assert.strictEqual(payload.operation, "explain");
+    assert.strictEqual(payload.ok, true);
+    assert.ok(payload.rule, "explain payload must include the rule descriptor");
+    assert.strictEqual(payload.rule!.rule_id, MISSING_CELL_PARAMETERS_RULE_ID);
+    assert.strictEqual(payload.rule!.severity, "warning");
+    assert.strictEqual(payload.rule!.category, "semantic consistency");
+    assert.ok(payload.rule!.fix_hints.length >= 1);
+    assert.ok(payload.rule!.manual_ref);
+  });
+
+  it("lists the rule via the rules operation", function () {
+    const payload = runTool(["rules", "--format", "json"]) as RulesPayload;
+    assert.strictEqual(payload.operation, "rules");
+    const entry = payload.rules.find(
+      (rule) => rule.rule_id === MISSING_CELL_PARAMETERS_RULE_ID,
+    );
+    assert.ok(entry, "rules export must include cif.cell.missing_parameters");
+    assert.strictEqual(entry!.severity, "warning");
+    assert.strictEqual(entry!.category, "semantic consistency");
+  });
+
+  it("keeps the rule manifest in sync with the TypeScript registry", function () {
+    const payload = runTool(["rules", "--format", "json"]) as RulesPayload;
+    const entry = payload.rules.find(
+      (rule) => rule.rule_id === MISSING_CELL_PARAMETERS_RULE_ID,
+    );
+    const manifestPath = path.join(REPO_ROOT, "rules", "diagnostics.yaml");
+    const manifest = fs.readFileSync(manifestPath, "utf8");
+    assert.ok(
+      manifest.includes(`rule_id: ${MISSING_CELL_PARAMETERS_RULE_ID}`),
+      "manifest must declare the rule",
+    );
+    assert.ok(entry, "rules export and manifest must agree");
+  });
+});
+
+const ATOM_SITE_SYMMETRY_RULE_ID = "cif.atom_site.symmetry_mismatch";
+const ATOM_SITE_SYMMETRY_INVALID = path.join(
+  FIXTURE_DIR,
+  "atom_site_symmetry_mismatch.cif",
+);
+const ATOM_SITE_SYMMETRY_VALID = path.join(
+  FIXTURE_DIR,
+  "atom_site_symmetry_mismatch_valid.cif",
+);
+const ATOM_SITE_SYMMETRY_GOLDEN = path.join(
+  FIXTURE_DIR,
+  "atom_site_symmetry_mismatch.json",
+);
+
+describe("cif.atom_site.symmetry_mismatch rule (issue #20)", function () {
+  this.timeout(20000);
+
+  it("emits exactly the rule's diagnostics on the invalid fixture", function () {
+    const payload = runTool([
+      "check",
+      ATOM_SITE_SYMMETRY_INVALID,
+      "--format",
+      "json",
+    ]) as CheckPayload;
+    const ruleDiagnostics = payload.diagnostics.filter(
+      (diagnostic) => diagnostic.code === ATOM_SITE_SYMMETRY_RULE_ID,
+    );
+
+    const golden = JSON.parse(
+      fs.readFileSync(ATOM_SITE_SYMMETRY_GOLDEN, "utf8"),
+    ) as GoldenFile;
+
+    assert.strictEqual(
+      ruleDiagnostics.length,
+      golden.occurrences.length,
+      "expected the golden number of symmetry_mismatch diagnostics",
+    );
+
+    ruleDiagnostics.forEach((diagnostic) => {
+      assert.strictEqual(diagnostic.severity, golden.severity);
+      assert.strictEqual(diagnostic.category, golden.category);
+      assert.strictEqual(diagnostic.source, golden.source);
+      assert.strictEqual(diagnostic.blocking, golden.blocking);
+      assert.deepStrictEqual(diagnostic.fix_hints, golden.fix_hints);
+      assert.strictEqual(diagnostic.manual_ref, golden.manual_ref);
+    });
+
+    ruleDiagnostics.forEach((diagnostic, index) => {
+      const expected = golden.occurrences[index];
+      const { range } = diagnostic;
+      assert.deepStrictEqual(range.start, {
+        line: expected.line_start,
+        character: expected.char_start,
+      });
+      assert.deepStrictEqual(range.end, {
+        line: expected.line_end,
+        character: expected.char_end,
+      });
+      assert.strictEqual(diagnostic.message, expected.message);
+    });
+  });
+
+  it("does not fire on a fixture that pairs atom-site with symmetry info", function () {
+    const payload = runTool([
+      "check",
+      ATOM_SITE_SYMMETRY_VALID,
+      "--format",
+      "json",
+    ]) as CheckPayload;
+    const ruleDiagnostics = payload.diagnostics.filter(
+      (diagnostic) => diagnostic.code === ATOM_SITE_SYMMETRY_RULE_ID,
+    );
+    assert.deepStrictEqual(ruleDiagnostics, []);
+  });
+
+  it("exposes the rule via the explain operation", function () {
+    const payload = runTool([
+      "explain",
+      ATOM_SITE_SYMMETRY_RULE_ID,
+      "--format",
+      "json",
+    ]) as ExplainPayload;
+    assert.strictEqual(payload.operation, "explain");
+    assert.strictEqual(payload.ok, true);
+    assert.ok(payload.rule, "explain payload must include the rule descriptor");
+    assert.strictEqual(payload.rule!.rule_id, ATOM_SITE_SYMMETRY_RULE_ID);
+    assert.strictEqual(payload.rule!.severity, "warning");
+    assert.strictEqual(payload.rule!.category, "semantic consistency");
+    assert.ok(payload.rule!.fix_hints.length >= 1);
+    assert.ok(payload.rule!.manual_ref);
+  });
+
+  it("lists the rule via the rules operation", function () {
+    const payload = runTool(["rules", "--format", "json"]) as RulesPayload;
+    assert.strictEqual(payload.operation, "rules");
+    const entry = payload.rules.find(
+      (rule) => rule.rule_id === ATOM_SITE_SYMMETRY_RULE_ID,
+    );
+    assert.ok(
+      entry,
+      "rules export must include cif.atom_site.symmetry_mismatch",
+    );
+    assert.strictEqual(entry!.severity, "warning");
+    assert.strictEqual(entry!.category, "semantic consistency");
+  });
+
+  it("keeps the rule manifest in sync with the TypeScript registry", function () {
+    const payload = runTool(["rules", "--format", "json"]) as RulesPayload;
+    const entry = payload.rules.find(
+      (rule) => rule.rule_id === ATOM_SITE_SYMMETRY_RULE_ID,
+    );
+    const manifestPath = path.join(REPO_ROOT, "rules", "diagnostics.yaml");
+    const manifest = fs.readFileSync(manifestPath, "utf8");
+    assert.ok(
+      manifest.includes(`rule_id: ${ATOM_SITE_SYMMETRY_RULE_ID}`),
+      "manifest must declare the rule",
+    );
+    assert.ok(entry, "rules export and manifest must agree");
+  });
+});

@@ -1,0 +1,4 @@
+# Fixture for rule cif.syntax.malformed_data_block (issue #14).
+# A well-formed data-block header: `data_<block-name>` with a non-empty name.
+data_well_formed
+_cell_length_a 5.6402

@@ -1,0 +1,13 @@
+# Fixture for rule cif.atom_site.symmetry_mismatch (issue #20).
+# Declares atom-site coordinates together with a space-group header so the
+# coordinates can be interpreted unambiguously. Must NOT trigger the rule.
+data_atoms_with_symmetry
+_symmetry_space_group_name_H-M 'P 1'
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Na1 Na 0.0 0.0 0.0
+Cl1 Cl 0.5 0.0 0.0

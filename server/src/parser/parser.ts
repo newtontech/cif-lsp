@@ -60,10 +60,22 @@ function dataBlock(data: Data): boolean {
     }
     data.block = null;
     return true;
+  } else if (isMalformedDataHeader(block)) {
+    // `data_` written without a block name lands as UNQUOTED text because the
+    // lexer requires `data_<name>`. Surface it as MalformedDataBlock so the
+    // rule manifest can offer the precise repair (append a non-empty name).
+    data.errors.push(
+      new ParserError(ParserErrorType.MalformedDataBlock, block),
+    );
+    return true;
   } else {
     data.errors.push(new ParserError(ParserErrorType.MissingDataBlock, block));
     return true;
   }
+}
+
+function isMalformedDataHeader(token: Token): boolean {
+  return token.type === TokenType.UNQUOTED && /^data_$/i.test(token.text);
 }
 
 function dataItems(data: Data): boolean {

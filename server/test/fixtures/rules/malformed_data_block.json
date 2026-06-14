@@ -1,0 +1,22 @@
+{
+  "rule_id": "cif.syntax.malformed_data_block",
+  "severity": "error",
+  "category": "syntax",
+  "source": "cif-lsp",
+  "blocking": true,
+  "manual_ref": "https://www.iucr.org/resources/cif/spec/version1.1/cifsyntax",
+  "fix_hints": [
+    "Provide a non-empty block name after data_, e.g. data_my_block.",
+    "Avoid whitespace between data_ and the block name; the name must immediately follow the keyword."
+  ],
+  "message_template": "'data_' is missing its data-block name. CIF syntax requires data_<block-name> with a non-empty block name.",
+  "occurrences": [
+    {
+      "line_start": 3,
+      "char_start": 0,
+      "line_end": 3,
+      "char_end": 5,
+      "message": "'data_' is missing its data-block name. CIF syntax requires data_<block-name> with a non-empty block name."
+    }
+  ]
+}

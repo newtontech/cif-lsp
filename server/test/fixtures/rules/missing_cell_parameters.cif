@@ -1,0 +1,7 @@
+# Fixture for rule cif.cell.missing_parameters (issue #19).
+# Declares only two of the six canonical unit-cell parameters: the missing
+# _cell_length_c, _cell_angle_alpha, _cell_angle_beta, and _cell_angle_gamma
+# tags leave the unit cell under-specified.
+data_partial_cell
+_cell_length_a 5.6402
+_cell_length_b 5.6402
